@@ -1,0 +1,9 @@
+export function Metric({ label, value, tone = "default" }: { label: string; value: string; tone?: "default" | "success" | "warning" }) {
+  const valueColor = tone === "success" ? "text-success" : tone === "warning" ? "text-warning" : "text-ink";
+  return (
+    <div className="rounded-lg bg-card border border-line p-4">
+      <p className="text-[13px] text-ink-muted mb-1">{label}</p>
+      <p className={`text-2xl font-medium tabular-nums ${valueColor}`}>{value}</p>
+    </div>
+  );
+}
