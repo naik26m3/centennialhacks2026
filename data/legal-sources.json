@@ -70,5 +70,45 @@
     "jurisdiction": "CA-ON",
     "title": "Home Energy Loan Program (HELP)",
     "url": "https://www.toronto.ca/services-payments/water-environment/environmental-grants-incentives/home-energy-loan-program-help/"
+  },
+  {
+    "id": "ca-on-ontario-electricity-rebate",
+    "programKey": "ontario_electricity_rebate",
+    "authority": "Government of Ontario",
+    "jurisdiction": "CA-ON",
+    "title": "Ontario Electricity Rebate",
+    "url": "https://www.ontario.ca/page/manage-energy-costs-your-home"
+  },
+  {
+    "id": "ca-on-peak-perks",
+    "programKey": "peak_perks",
+    "authority": "Save on Energy",
+    "jurisdiction": "CA-ON",
+    "title": "Peak Perks",
+    "url": "https://www.saveonenergy.ca/For-Your-Home/Peak-Perks"
+  },
+  {
+    "id": "ca-on-energy-property-tax-credit",
+    "programKey": "oeptc",
+    "authority": "Government of Ontario",
+    "jurisdiction": "CA-ON",
+    "title": "Ontario Energy and Property Tax Credit",
+    "url": "https://www.ontario.ca/page/ontario-trillium-benefit"
+  },
+  {
+    "id": "ca-on-toronto-utility-relief",
+    "programKey": "toronto_utility_relief",
+    "authority": "City of Toronto",
+    "jurisdiction": "CA-ON",
+    "title": "Property Tax, Water and Solid Waste Relief",
+    "url": "https://www.toronto.ca/services-payments/property-taxes-utilities/property-tax/property-tax-water-solid-waste-relief-and-rebate-programs/property-tax-and-utility-relief-program/"
+  },
+  {
+    "id": "ca-on-toronto-basement-flooding-subsidy",
+    "programKey": "toronto_basement_flooding",
+    "authority": "City of Toronto",
+    "jurisdiction": "CA-ON",
+    "title": "Basement Flooding Protection Subsidy Program",
+    "url": "https://www.toronto.ca/services-payments/water-environment/managing-rain-melted-snow/basement-flooding/basement-flooding-protection-subsidy-program/"
   }
 ]

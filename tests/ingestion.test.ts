@@ -22,8 +22,20 @@ test("configured program sources are unique official HTML pages", async () => {
   const sources = JSON.parse(
     await readFile(new URL("../data/legal-sources.json", import.meta.url), "utf8"),
   ) as Array<{ id: string; programKey: string; url: string }>;
-  const programKeys = new Set(["oesp", "eap", "leap", "home_renovation_savings", "toronto_help"]);
+  const programKeys = new Set([
+    "oesp",
+    "eap",
+    "leap",
+    "home_renovation_savings",
+    "toronto_help",
+    "ontario_electricity_rebate",
+    "peak_perks",
+    "oeptc",
+    "toronto_utility_relief",
+    "toronto_basement_flooding",
+  ]);
   assert.equal(new Set(sources.map(({ id }) => id)).size, sources.length);
+  assert.deepEqual(new Set(sources.map(({ programKey }) => programKey)), programKeys);
   for (const source of sources) {
     assert.ok(programKeys.has(source.programKey));
     assertOfficialSourceUrl(source.url);

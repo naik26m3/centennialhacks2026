@@ -9,7 +9,7 @@ their slice, commits only that scope, and then marks it available.
 | `lib/eligibility/**`, `lib/financial/**`, `tests/engines.test.ts` | deterministic-engine agent | active |
 | `db/**` | database agent | active |
 | `lib/ingestion/**` | backend/RAG agent | complete — available |
-| `data/legal-sources.json`, `tests/ingestion.test.ts` | ten-program catalog side task | active |
+| `data/legal-sources.json`, `tests/ingestion.test.ts` | ten-program catalog side task | complete — available |
 | `infra/aws/**` | AWS infrastructure agent | complete — available |
 | `scripts/ingest-legal-sources.ts`, `tests/ingest-script.test.ts` | embedding-ingestion Luna agent | active |
 | `lib/ocr/**`, `scripts/ocr-smoke.ts`, `tests/ocr.test.ts` | Gemini OCR Luna agent | active — user reassigned for this slice |
