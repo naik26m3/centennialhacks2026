@@ -311,12 +311,181 @@ export function parseEvaluationCaseId(value: string): string {
   return value;
 }
 
-type CaseFieldRow = { field_name: string; value: unknown };
+type CaseFieldRow = {
+  id: string;
+  field_name: string;
+  value: unknown;
+  page_number: number | null;
+  bounding_box: unknown;
+  review_status: string;
+};
 type CaseAnswerRow = { question_key: string; answer: unknown };
 type VersionRow = { id: string; program_key: string; program_name: string; jurisdiction: string };
 
 function objectMap(rows: readonly { key: string; value: unknown }[]): Record<string, unknown> {
   return Object.fromEntries(rows.map((row) => [row.key, row.value]));
+}
+
+async function assertOwnedCase(sql: Sql, userId: string, caseId: string): Promise<void> {
+  const owned = await sql`
+    SELECT id
+    FROM cases
+    WHERE id = ${caseId} AND clerk_user_id = ${userId} AND deleted_at IS NULL
+    FOR UPDATE
+  `;
+  if (!owned[0]) throw new EvaluationNotFoundError("Case not found.");
+}
+
+function ruleLabel(rule: EligibilityRuleRow): string {
+  const definition = record(rule.definition);
+  return typeof definition?.question === "string" && definition.question.trim()
+    ? definition.question.trim()
+    : rule.rule_key;
+}
+
+async function evaluateCaseTransaction(
+  sql: Sql,
+  userId: string,
+  caseId: string,
+  expectedQuestionKey?: string,
+): Promise<{ caseId: string; status: EvaluationRun["status"]; evaluations: ProgramEvaluationSummary[]; nextQuestion: NextQuestion | null }> {
+  const [fieldRows, answerRows, versionRows, ruleRows, benefitRows] = await Promise.all([
+    sql`
+      SELECT id, field_name, value, page_number, bounding_box, review_status
+      FROM extracted_fields
+      WHERE case_id = ${caseId} AND review_status IN ('confirmed', 'corrected')
+      ORDER BY field_name
+    `,
+    sql`
+      SELECT question_key, answer
+      FROM case_answers
+      WHERE case_id = ${caseId}
+      ORDER BY question_key
+    `,
+    sql`
+      SELECT pv.id::text AS id, p.canonical_key AS program_key,
+             p.display_name AS program_name, p.jurisdiction
+      FROM program_versions pv
+      JOIN programs p ON p.id = pv.program_id
+      WHERE pv.status = 'current' AND p.jurisdiction = 'CA-ON'
+      ORDER BY p.canonical_key
+    `,
+    sql`
+      SELECT er.program_version_id::text, er.rule_key, er.rule_kind,
+             er.definition, er.required, er.sort_order
+      FROM eligibility_rules er
+      JOIN program_versions pv ON pv.id = er.program_version_id
+      JOIN programs p ON p.id = pv.program_id
+      WHERE pv.status = 'current' AND p.jurisdiction = 'CA-ON'
+      ORDER BY er.program_version_id, er.sort_order, er.rule_key
+    `,
+    sql`
+      SELECT br.program_version_id::text, br.rule_key, br.benefit_type,
+             br.definition, br.formula_version
+      FROM benefit_rules br
+      JOIN program_versions pv ON pv.id = br.program_version_id
+      JOIN programs p ON p.id = pv.program_id
+      WHERE pv.status = 'current' AND p.jurisdiction = 'CA-ON'
+      ORDER BY br.program_version_id, br.rule_key
+    `,
+  ]);
+  const typedFieldRows = (fieldRows as CaseFieldRow[]).filter((row) =>
+    row.review_status === "confirmed" || row.review_status === "corrected");
+  const fields = objectMap(typedFieldRows.map((row) => ({ key: row.field_name, value: row.value })));
+  const fieldByName = new Map(typedFieldRows.map((row) => [row.field_name, row]));
+  const answers = objectMap((answerRows as CaseAnswerRow[]).map((row) => ({ key: row.question_key, value: row.answer })));
+  const programs = (versionRows as VersionRow[]).map((version) => ({
+    id: version.id,
+    programKey: version.program_key,
+    programName: version.program_name,
+    jurisdiction: version.jurisdiction,
+    eligibilityRules: (ruleRows as EligibilityRuleRow[]).filter((rule) => rule.program_version_id === version.id),
+    benefitRules: (benefitRows as BenefitRuleRow[]).filter((rule) => rule.program_version_id === version.id),
+  }));
+  if (expectedQuestionKey !== undefined && !programs.some((program) =>
+    program.eligibilityRules.some((rule) => rule.rule_kind === "case_answer" && rule.rule_key === expectedQuestionKey))) {
+    throw new EvaluationInputError("questionKey is not a current case question.");
+  }
+
+  const run = evaluatePrograms(programs, fields, answers);
+  for (const evaluation of run.evaluations) {
+    const saved = await sql`
+      INSERT INTO case_program_evaluations
+        (case_id, program_version_id, status, confirmed_requirements, missing_requirements, input_snapshot, engine_version)
+      VALUES
+        (${caseId}, ${evaluation.programVersionId}, ${evaluation.eligibility.status},
+         ${JSON.stringify(evaluation.eligibility.confirmedRequirements)}::jsonb,
+         ${JSON.stringify(evaluation.eligibility.missingRequirements)}::jsonb,
+         ${JSON.stringify({ fields, answers })}::jsonb, 'deterministic-v1')
+      ON CONFLICT (case_id, program_version_id) DO UPDATE SET
+        status = EXCLUDED.status,
+        confirmed_requirements = EXCLUDED.confirmed_requirements,
+        missing_requirements = EXCLUDED.missing_requirements,
+        input_snapshot = EXCLUDED.input_snapshot,
+        engine_version = EXCLUDED.engine_version,
+        evaluated_at = now(), updated_at = now()
+      RETURNING id::text AS id
+    `;
+    const evaluationId = String((saved[0] as { id?: string } | undefined)?.id ?? "");
+    if (!evaluationId) throw new Error("Evaluation could not be stored.");
+    await sql`DELETE FROM value_components WHERE evaluation_id = ${evaluationId}`;
+    await sql`DELETE FROM evidence_items WHERE evaluation_id = ${evaluationId} AND evidence_type = 'bill_field'`;
+    const program = programs.find((candidate) => candidate.id === evaluation.programVersionId);
+    for (const rule of program?.eligibilityRules ?? []) {
+      if (rule.rule_kind !== "bill_fact") continue;
+      const definition = record(rule.definition);
+      const fieldName = typeof definition?.fact === "string" ? definition.fact : null;
+      const field = fieldName ? fieldByName.get(fieldName) : undefined;
+      if (!field?.id) continue;
+      const boundingBox = field.bounding_box === null || field.bounding_box === undefined
+        ? null
+        : JSON.stringify(field.bounding_box);
+      await sql`
+        INSERT INTO evidence_items
+          (case_id, evaluation_id, evidence_type, extracted_field_id, label, page_number, bounding_box)
+        VALUES
+          (${caseId}, ${evaluationId}, 'bill_field', ${field.id}, ${ruleLabel(rule)}, ${field.page_number}, ${boundingBox}::jsonb)
+      `;
+    }
+    for (const value of evaluation.values) {
+      await sql`
+        INSERT INTO value_components
+          (evaluation_id, component_key, benefit_type, amount, cadence,
+           minimum_amount, maximum_amount, certainty, contributes_to_savings,
+           formula_version, source_version_id)
+        VALUES
+          (${evaluationId}, ${value.componentKey}, ${value.benefitType}, ${value.amount},
+           ${value.cadence}, ${value.minimumAmount}, ${value.maximumAmount}, ${value.certainty},
+           ${value.contributesToSavings}, ${value.formulaVersion}, ${evaluation.programVersionId})
+        ON CONFLICT (evaluation_id, component_key) DO UPDATE SET
+          benefit_type = EXCLUDED.benefit_type, amount = EXCLUDED.amount,
+          cadence = EXCLUDED.cadence, minimum_amount = EXCLUDED.minimum_amount,
+          maximum_amount = EXCLUDED.maximum_amount, certainty = EXCLUDED.certainty,
+          contributes_to_savings = EXCLUDED.contributes_to_savings,
+          formula_version = EXCLUDED.formula_version, source_version_id = EXCLUDED.source_version_id,
+          updated_at = now()
+      `;
+    }
+  }
+  await sql`
+    UPDATE cases
+    SET status = ${run.status}::case_status
+    WHERE id = ${caseId} AND clerk_user_id = ${userId} AND deleted_at IS NULL
+  `;
+  return { caseId, status: run.status, evaluations: run.evaluations, nextQuestion: run.nextQuestion };
+}
+
+export async function evaluateCase(
+  userId: string,
+  caseId: string,
+  db?: Database,
+): Promise<{ caseId: string; status: EvaluationRun["status"]; evaluations: ProgramEvaluationSummary[]; nextQuestion: NextQuestion | null }> {
+  parseEvaluationCaseId(caseId);
+  const dbClient = database(db);
+  return dbClient.begin(async (sql) => {
+    await assertOwnedCase(sql, userId, caseId);
+    return evaluateCaseTransaction(sql, userId, caseId);
+  });
 }
 
 export async function submitCaseAnswer(
@@ -329,122 +498,13 @@ export async function submitCaseAnswer(
   const questionKey = parseCaseAnswer(input.questionKey, "questionKey");
   const dbClient = database(db);
   return dbClient.begin(async (sql) => {
-    const owned = await sql`
-      SELECT id
-      FROM cases
-      WHERE id = ${caseId} AND clerk_user_id = ${userId} AND deleted_at IS NULL
-      FOR UPDATE
-    `;
-    if (!owned[0]) throw new EvaluationNotFoundError("Case not found.");
-
+    await assertOwnedCase(sql, userId, caseId);
     await sql`
       INSERT INTO case_answers (case_id, question_key, answer, source)
       VALUES (${caseId}, ${questionKey}, ${JSON.stringify(input.answer)}::jsonb, 'user')
       ON CONFLICT (case_id, question_key) DO UPDATE
       SET answer = EXCLUDED.answer, source = 'user', answered_at = now(), updated_at = now()
     `;
-
-    const [fieldRows, answerRows, versionRows, ruleRows, benefitRows] = await Promise.all([
-      sql`
-        SELECT field_name, value
-        FROM extracted_fields
-        WHERE case_id = ${caseId} AND review_status IN ('confirmed', 'corrected')
-        ORDER BY field_name
-      `,
-      sql`
-        SELECT question_key, answer
-        FROM case_answers
-        WHERE case_id = ${caseId}
-        ORDER BY question_key
-      `,
-      sql`
-        SELECT pv.id::text AS id, p.canonical_key AS program_key,
-               p.display_name AS program_name, p.jurisdiction
-        FROM program_versions pv
-        JOIN programs p ON p.id = pv.program_id
-        WHERE pv.status = 'current' AND p.jurisdiction = 'CA-ON'
-        ORDER BY p.canonical_key
-      `,
-      sql`
-        SELECT er.program_version_id::text, er.rule_key, er.rule_kind,
-               er.definition, er.required, er.sort_order
-        FROM eligibility_rules er
-        JOIN program_versions pv ON pv.id = er.program_version_id
-        JOIN programs p ON p.id = pv.program_id
-        WHERE pv.status = 'current' AND p.jurisdiction = 'CA-ON'
-        ORDER BY er.program_version_id, er.sort_order, er.rule_key
-      `,
-      sql`
-        SELECT br.program_version_id::text, br.rule_key, br.benefit_type,
-               br.definition, br.formula_version
-        FROM benefit_rules br
-        JOIN program_versions pv ON pv.id = br.program_version_id
-        JOIN programs p ON p.id = pv.program_id
-        WHERE pv.status = 'current' AND p.jurisdiction = 'CA-ON'
-        ORDER BY br.program_version_id, br.rule_key
-      `,
-    ]);
-    const fields = objectMap((fieldRows as CaseFieldRow[]).map((row) => ({ key: row.field_name, value: row.value })));
-    const answers = objectMap((answerRows as CaseAnswerRow[]).map((row) => ({ key: row.question_key, value: row.answer })));
-    const programs = (versionRows as VersionRow[]).map((version) => ({
-      id: version.id,
-      programKey: version.program_key,
-      programName: version.program_name,
-      jurisdiction: version.jurisdiction,
-      eligibilityRules: (ruleRows as EligibilityRuleRow[]).filter((rule) => rule.program_version_id === version.id),
-      benefitRules: (benefitRows as BenefitRuleRow[]).filter((rule) => rule.program_version_id === version.id),
-    }));
-    if (!programs.some((program) => program.eligibilityRules.some((rule) => rule.rule_kind === "case_answer" && rule.rule_key === questionKey))) {
-      throw new EvaluationInputError("questionKey is not a current case question.");
-    }
-    const run = evaluatePrograms(programs, fields, answers);
-
-    for (const evaluation of run.evaluations) {
-      const saved = await sql`
-        INSERT INTO case_program_evaluations
-          (case_id, program_version_id, status, confirmed_requirements, missing_requirements, input_snapshot, engine_version)
-        VALUES
-          (${caseId}, ${evaluation.programVersionId}, ${evaluation.eligibility.status},
-           ${JSON.stringify(evaluation.eligibility.confirmedRequirements)}::jsonb,
-           ${JSON.stringify(evaluation.eligibility.missingRequirements)}::jsonb,
-           ${JSON.stringify({ fields, answers })}::jsonb, 'deterministic-v1')
-        ON CONFLICT (case_id, program_version_id) DO UPDATE SET
-          status = EXCLUDED.status,
-          confirmed_requirements = EXCLUDED.confirmed_requirements,
-          missing_requirements = EXCLUDED.missing_requirements,
-          input_snapshot = EXCLUDED.input_snapshot,
-          engine_version = EXCLUDED.engine_version,
-          evaluated_at = now(), updated_at = now()
-        RETURNING id::text AS id
-      `;
-      const evaluationId = String((saved[0] as { id?: string } | undefined)?.id ?? "");
-      if (!evaluationId) throw new Error("Evaluation could not be stored.");
-      await sql`DELETE FROM value_components WHERE evaluation_id = ${evaluationId}`;
-      for (const value of evaluation.values) {
-        await sql`
-          INSERT INTO value_components
-            (evaluation_id, component_key, benefit_type, amount, cadence,
-             minimum_amount, maximum_amount, certainty, contributes_to_savings,
-             formula_version, source_version_id)
-          VALUES
-            (${evaluationId}, ${value.componentKey}, ${value.benefitType}, ${value.amount},
-             ${value.cadence}, ${value.minimumAmount}, ${value.maximumAmount}, ${value.certainty},
-             ${value.contributesToSavings}, ${value.formulaVersion}, ${evaluation.programVersionId})
-          ON CONFLICT (evaluation_id, component_key) DO UPDATE SET
-            benefit_type = EXCLUDED.benefit_type, amount = EXCLUDED.amount,
-            cadence = EXCLUDED.cadence, minimum_amount = EXCLUDED.minimum_amount,
-            maximum_amount = EXCLUDED.maximum_amount, certainty = EXCLUDED.certainty,
-            contributes_to_savings = EXCLUDED.contributes_to_savings,
-            formula_version = EXCLUDED.formula_version, source_version_id = EXCLUDED.source_version_id,
-            updated_at = now()
-        `;
-      }
-    }
-    await sql`
-      UPDATE cases
-      SET status = ${run.status}::case_status
-      WHERE id = ${caseId} AND clerk_user_id = ${userId} AND deleted_at IS NULL
-    `;
-    return { caseId, status: run.status, evaluations: run.evaluations, nextQuestion: run.nextQuestion };
+    return evaluateCaseTransaction(sql, userId, caseId, questionKey);
   });
 }
