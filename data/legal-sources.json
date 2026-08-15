@@ -1,0 +1,42 @@
+[
+  {
+    "id": "ca-on-electricity-support-program",
+    "programKey": "oesp",
+    "authority": "Ontario Energy Board",
+    "jurisdiction": "CA-ON",
+    "title": "Ontario Electricity Support Program",
+    "url": "https://oeb.ca/consumer-information-and-protection/bill-assistance-programs/ontario-electricity-support-program"
+  },
+  {
+    "id": "ca-on-energy-affordability-program",
+    "programKey": "eap",
+    "authority": "Save on Energy",
+    "jurisdiction": "CA-ON",
+    "title": "Energy Affordability Program",
+    "url": "https://saveonenergy.ca/en/For-Your-Home/Energy-Affordability-Program"
+  },
+  {
+    "id": "ca-on-low-income-energy-assistance-program",
+    "programKey": "leap",
+    "authority": "Ontario Energy Board",
+    "jurisdiction": "CA-ON",
+    "title": "Low-income Energy Assistance Program",
+    "url": "https://www.oeb.ca/consumer-information-and-protection/bill-assistance-programs/low-income-energy-assistance-program"
+  },
+  {
+    "id": "ca-on-home-renovation-savings",
+    "programKey": "home_renovation_savings",
+    "authority": "Save on Energy",
+    "jurisdiction": "CA-ON",
+    "title": "Home Renovation Savings",
+    "url": "https://saveonenergy.ca/en/For-Your-Home/Home-Renovation-Savings"
+  },
+  {
+    "id": "ca-on-toronto-help",
+    "programKey": "toronto_help",
+    "authority": "City of Toronto",
+    "jurisdiction": "CA-ON",
+    "title": "Home Energy Loan Program (HELP)",
+    "url": "https://www.toronto.ca/services-payments/water-environment/environmental-grants-incentives/home-energy-loan-program-help/"
+  }
+]
