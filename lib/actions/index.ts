@@ -52,6 +52,7 @@ type ActionRow = {
   opportunity_id: string;
   case_id: string;
   status: PreparedAction["status"];
+  evaluation_status: string;
   route_id: string;
   route_key: string;
   route_type: string;
@@ -68,6 +69,7 @@ type EvaluationRow = {
   id: string;
   case_id: string;
   program_version_id: string;
+  status: string;
 };
 
 function database(value?: Database): TransactionalDatabase {
@@ -140,7 +142,7 @@ async function findEvaluation(
   opportunityId: string,
 ): Promise<EvaluationRow | null> {
   const rows = await sql`
-    SELECT e.id, e.case_id, e.program_version_id
+    SELECT e.id, e.case_id, e.program_version_id, e.status
     FROM case_program_evaluations e
     JOIN cases c ON c.id = e.case_id
     WHERE e.id = ${opportunityId}
@@ -154,11 +156,13 @@ async function findEvaluation(
 async function findActionByKey(sql: Sql, caseId: string, key: string): Promise<ActionRow | null> {
   const rows = await sql`
     SELECT pa.id, pa.evaluation_id AS opportunity_id, pa.case_id, pa.status,
+           e.status AS evaluation_status,
            ar.id AS route_id, ar.route_key, ar.route_type, ar.destination,
            ar.instructions, ar.verified, ar.verified_at, ar.stale_after,
            pa.created_at, pa.approved_at
     FROM prepared_actions pa
     JOIN action_routes ar ON ar.id = pa.action_route_id
+    JOIN case_program_evaluations e ON e.id = pa.evaluation_id AND e.case_id = pa.case_id
     WHERE pa.case_id = ${caseId} AND pa.idempotency_key = ${key}
     LIMIT 1
   `;
@@ -168,11 +172,13 @@ async function findActionByKey(sql: Sql, caseId: string, key: string): Promise<A
 async function findActionById(sql: Sql, userId: string, actionId: string): Promise<ActionRow | null> {
   const rows = await sql`
     SELECT pa.id, pa.evaluation_id AS opportunity_id, pa.case_id, pa.status,
+           e.status AS evaluation_status,
            ar.id AS route_id, ar.route_key, ar.route_type, ar.destination,
            ar.instructions, ar.verified, ar.verified_at, ar.stale_after,
            pa.created_at, pa.approved_at
     FROM prepared_actions pa
     JOIN action_routes ar ON ar.id = pa.action_route_id
+    JOIN case_program_evaluations e ON e.id = pa.evaluation_id AND e.case_id = pa.case_id
     JOIN cases c ON c.id = pa.case_id
     WHERE pa.id = ${actionId}
       AND c.clerk_user_id = ${userId}
@@ -256,6 +262,9 @@ export async function prepareAction(
   return dbClient.begin(async (sql) => {
     const evaluation = await findEvaluation(sql, userId, opportunityId);
     if (!evaluation) throw new ActionNotFoundError("Opportunity not found.");
+    if (evaluation.status !== "eligible") {
+      throw new ActionConflictError("action_not_approvable", "This action is no longer available for approval.");
+    }
 
     const existing = await readExistingAction(sql, evaluation, idempotencyKey);
     if (existing) return { action: existing, created: false };
@@ -318,6 +327,9 @@ export async function approveAction(
   return dbClient.begin(async (sql) => {
     const action = await findActionById(sql, userId, actionId);
     if (!action) throw new ActionNotFoundError("Action not found.");
+    if (action.evaluation_status !== "eligible") {
+      throw new ActionConflictError("action_not_approvable", "This action is no longer available for approval.");
+    }
 
     const priorEvents = await sql`
       SELECT event_type, entity_id

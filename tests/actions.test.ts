@@ -34,6 +34,7 @@ function actionRow(status: "prepared" | "approved" = "prepared") {
     opportunity_id: opportunityId,
     case_id: caseId,
     status,
+    evaluation_status: "eligible",
     route_id: routeId,
     route_key: routeRow.route_key,
     route_type: routeRow.route_type,
@@ -47,7 +48,13 @@ function actionRow(status: "prepared" | "approved" = "prepared") {
   };
 }
 
-type FakeState = { action?: ReturnType<typeof actionRow>; route?: typeof routeRow; inserted: boolean; evaluation?: boolean };
+type FakeState = {
+  action?: ReturnType<typeof actionRow>;
+  route?: typeof routeRow;
+  inserted: boolean;
+  evaluation?: boolean;
+  evaluationStatus?: string;
+};
 
 function fakeDatabase(state: FakeState) {
   const query = (async (strings: TemplateStringsArray, ...values: unknown[]) => {
@@ -55,7 +62,7 @@ function fakeDatabase(state: FakeState) {
     if (sql.includes("FROM case_program_evaluations")) {
       return state.evaluation === false
         ? []
-        : [{ id: opportunityId, case_id: caseId, program_version_id: versionId }];
+        : [{ id: opportunityId, case_id: caseId, program_version_id: versionId, status: state.evaluationStatus ?? "eligible" }];
     }
     if (sql.includes("FROM prepared_actions pa")) return state.action ? [state.action] : [];
     if (sql.includes("FROM action_routes")) return state.route?.verified ? [state.route] : [];
@@ -120,6 +127,21 @@ test("prepare never fabricates a destination for an unverified or missing route"
   );
 });
 
+test("manual-review and ineligible evaluations cannot prepare, including idempotent retries", async () => {
+  for (const evaluationStatus of ["manual_review", "ineligible"]) {
+    const state: FakeState = {
+      route: routeRow,
+      action: actionRow(),
+      inserted: true,
+      evaluationStatus,
+    };
+    await assert.rejects(
+      prepareAction("user-1", opportunityId, "prepare-blocked", null, fakeDatabase(state) as never),
+      (error: unknown) => error instanceof ActionConflictError && error.code === "action_not_approvable",
+    );
+  }
+});
+
 test("approval is explicit, transitions the case action, and is retry-safe", async () => {
   const state: FakeState = { action: actionRow(), inserted: true };
   const db = fakeDatabase(state);
@@ -127,4 +149,14 @@ test("approval is explicit, transitions the case action, and is retry-safe", asy
   assert.equal(approved.changed, true);
   assert.equal(approved.action.status, "approved");
   assert.equal(approved.action.approvedAt, "2026-08-15T00:01:00.000Z");
+});
+
+test("approval rechecks the current evaluation status", async () => {
+  for (const evaluationStatus of ["manual_review", "ineligible"]) {
+    const state = { action: { ...actionRow(), evaluation_status: evaluationStatus }, inserted: true };
+    await assert.rejects(
+      approveAction("user-1", actionId, `approve-${evaluationStatus}`, fakeDatabase(state) as never),
+      (error: unknown) => error instanceof ActionConflictError && error.code === "action_not_approvable",
+    );
+  }
 });
