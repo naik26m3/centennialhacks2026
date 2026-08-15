@@ -20,9 +20,17 @@ export const BillExtractionSchema = z.object({
   naturalGas: z.object({ usageM3: z.number().nullable(), cost: z.number().nullable() }).nullable(),
   totalAmount: z.number().nullable(),
   currency: z.string(),
+  primaryHeatingHint: z.enum(["natural_gas", "electric", "heat_pump", "oil", "propane", "unknown"]),
   detectedHeatingClues: z.array(z.string()),
   confidence: z.number().min(0).max(1),
   missingCriticalFields: z.array(z.string()),
+});
+
+// One Gemini call reading every uploaded bill at once (tagged by
+// sourceFileIndex, matching input order), instead of one call per file — same
+// quota-conservation reasoning as BatchEligibilityAssessmentSchema below.
+export const BillExtractionBatchSchema = z.object({
+  extractions: z.array(BillExtractionSchema.extend({ sourceFileIndex: z.number() })),
 });
 
 export const EligibilityAssessmentSchema = z.object({
@@ -34,5 +42,15 @@ export const EligibilityAssessmentSchema = z.object({
   explanation: z.string(),
 });
 
+// One Gemini call assessing every program at once (tagged by programId),
+// instead of one call per program — the free tier's per-day request quota is
+// tight enough that a 4-program household could burn most of a day's budget
+// on eligibility reasoning alone.
+export const BatchEligibilityAssessmentSchema = z.object({
+  assessments: z.array(EligibilityAssessmentSchema.extend({ programId: z.string() })),
+});
+
 export type BillExtractionResult = z.infer<typeof BillExtractionSchema>;
+export type BillExtractionBatchResult = z.infer<typeof BillExtractionBatchSchema>;
 export type EligibilityAssessmentResult = z.infer<typeof EligibilityAssessmentSchema>;
+export type BatchEligibilityAssessmentResult = z.infer<typeof BatchEligibilityAssessmentSchema>;

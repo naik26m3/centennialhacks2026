@@ -7,6 +7,7 @@ import { EligibilityMatrix } from "@/components/EligibilityMatrix";
 import { Metric } from "@/components/Metric";
 import { INCENTIVE_PROGRAMS } from "@/lib/data/fixtures";
 import { SourceBadge } from "@/components/SourceBadge";
+import { TactileButton } from "@/components/motion/TactileButton";
 
 export default function OpportunityDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -40,7 +41,11 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <Metric label="Potential incentive" value={`$${opportunity.estimatedIncentive.toLocaleString("en-CA")}`} tone="success" />
                 <Metric label="Est. upfront cost" value={`$${opportunity.estimatedUpfrontCost.toLocaleString("en-CA")}`} />
-                <Metric label="Est. annual savings" value={`$${opportunity.estimatedAnnualSavings.toLocaleString("en-CA")}`} tone="success" />
+                <Metric
+                  label={`Est. annual savings · ${opportunity.savingsBasis === "usage_derived" ? "based on your usage" : "estimated"}`}
+                  value={`$${opportunity.estimatedAnnualSavings.toLocaleString("en-CA")}`}
+                  tone="success"
+                />
                 <Metric label="Payback" value={opportunity.estimatedPaybackYears ? `${opportunity.estimatedPaybackYears} yrs` : "—"} />
               </div>
             </div>
@@ -53,12 +58,12 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
               <p className="text-[14px] font-medium mb-3">
                 {opportunity.status === "needs_answers" ? "Needs 1 answer" : "Program application"}
               </p>
-              <button
+              <TactileButton
                 onClick={() => router.push(`/agent/${opportunity.id}`)}
                 className="w-full rounded-lg bg-ink text-white text-[14px] font-medium py-2.5 hover:bg-ink/90 transition-colors"
               >
                 Get it for me
-              </button>
+              </TactileButton>
             </div>
           </div>
         </div>

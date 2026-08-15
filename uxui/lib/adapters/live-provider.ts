@@ -1,38 +1,60 @@
 import { INCENTIVE_PROGRAMS } from "@/lib/data/fixtures";
 import { EligibilityAssessmentResult } from "@/lib/ai/schemas";
-import { assessEligibilityWithGemini } from "@/lib/ai/gemini";
-import { estimateOpportunityEconomics } from "@/lib/calculations/payback";
+import { assessEligibilityBatchWithGemini } from "@/lib/ai/gemini";
+import { aggregateElectricityUsage, aggregateNaturalGasUsage, estimateOpportunityEconomicsFromUsage } from "@/lib/calculations/payback";
 import { evidenceFor } from "@/lib/adapters/demo-provider";
-import { EligibilityEvidence, HeatingType, HouseholdProfile, IncentiveProgram, Opportunity, UtilityBillExtraction } from "@/lib/types";
+import { HouseholdProfile, EligibilityEvidence, IncentiveProgram, Opportunity, UtilityBillExtraction } from "@/lib/types";
 
-// Only what a bill can honestly tell you — no fabricated dwelling type or
-// annual usage the bill doesn't actually show. Tenure stays "unknown" and is
-// resolved the same way as the demo path: the user answers Own/Rent in the
-// agent flow (see lib/context/greenlight-context.tsx#resolveTenureAnswer).
-function inferPrimaryHeating(bill: UtilityBillExtraction): HeatingType {
-  const clues = bill.detectedHeatingClues.join(" ").toLowerCase();
-  if (clues.includes("heat pump")) return "heat_pump";
-  if (clues.includes("propane")) return "propane";
-  if (clues.includes("oil")) return "oil";
-  if (bill.naturalGas && !bill.electricity) return "natural_gas";
-  if (clues.includes("natural gas") || clues.includes("gas")) return "natural_gas";
-  if (bill.electricity && !bill.naturalGas) return "electric";
-  return "unknown";
+// Only what the bills can honestly tell you — no fabricated dwelling type.
+// Tenure stays "unknown" and is resolved the same way as the demo path: the
+// user answers Own/Rent in the agent flow (see
+// lib/context/greenlight-context.tsx#resolveTenureAnswer).
+//
+// primaryHeating comes from Gemini's own primaryHeatingHint per bill (see
+// lib/ai/gemini.ts) — a bill that says "no natural gas service" contains the
+// substring "natural gas", so naive keyword matching over detectedHeatingClues
+// reads it backwards. Interpreting that kind of negation is exactly what the
+// model should do; a regex shouldn't try to out-guess it.
+//
+// When a household uploads both an electricity and a gas bill, "electric" is
+// often just the electric bill's default in the absence of any gas-specific
+// evidence, not positive proof there's no separate gas-heated furnace — every
+// home has an electric bill regardless of heating fuel. A gas/oil/propane
+// hint from another bill is much stronger, more specific evidence, so it
+// wins even over an equally- or more-confident "electric" hint. Only once
+// every uploaded bill is that generic does confidence/recency decide.
+function resolvePrimaryHeating(bills: UtilityBillExtraction[]): UtilityBillExtraction["primaryHeatingHint"] {
+  const specific = bills.filter((b) => b.primaryHeatingHint !== "electric" && b.primaryHeatingHint !== "unknown");
+  const candidates = specific.length > 0 ? specific : bills;
+  const winner = candidates
+    .slice()
+    .sort((a, b) => b.confidence - a.confidence || (b.billingPeriod.end ?? "").localeCompare(a.billingPeriod.end ?? ""))[0];
+  return winner.primaryHeatingHint;
 }
 
-export function buildHouseholdProfileFromBill(bill: UtilityBillExtraction): HouseholdProfile {
+export function buildHouseholdProfileFromBills(bills: UtilityBillExtraction[]): HouseholdProfile {
+  const mostRecent = bills
+    .slice()
+    .sort((a, b) => (b.billingPeriod.end ?? "").localeCompare(a.billingPeriod.end ?? ""))[0];
+
+  const gas = aggregateNaturalGasUsage(bills);
+  const electricity = aggregateElectricityUsage(bills);
+  const avgConfidence = bills.reduce((sum, b) => sum + b.confidence, 0) / bills.length;
+
   return {
     id: `household-${Date.now()}`,
-    country: bill.serviceAddress.country ?? "unknown",
-    provinceState: bill.serviceAddress.provinceState ?? "unknown",
-    city: bill.serviceAddress.city,
+    country: mostRecent.serviceAddress.country ?? "unknown",
+    provinceState: mostRecent.serviceAddress.provinceState ?? "unknown",
+    city: mostRecent.serviceAddress.city,
     dwellingType: "unknown",
     tenure: "unknown",
-    primaryHeating: inferPrimaryHeating(bill),
-    utilityProvider: bill.provider,
-    annualElectricityKwh: null,
+    primaryHeating: resolvePrimaryHeating(bills),
+    utilityProvider: mostRecent.provider,
+    annualElectricityKwh: electricity ? Math.round(electricity.annualUsage) : null,
+    annualNaturalGasM3: gas ? Math.round(gas.annualUsage) : null,
+    monthsOfDataUsed: { electricity: electricity?.monthsOfData ?? 0, naturalGas: gas?.monthsOfData ?? 0 },
     existingEquipment: { smartThermostat: false, heatPump: false },
-    profileConfidence: bill.confidence,
+    profileConfidence: avgConfidence,
   };
 }
 
@@ -74,35 +96,37 @@ function fallbackAssessment(reason: string): EligibilityAssessmentResult {
   };
 }
 
-export async function matchOpportunitiesLive(bill: UtilityBillExtraction, household: HouseholdProfile): Promise<Opportunity[]> {
-  return Promise.all(
-    INCENTIVE_PROGRAMS.map(async (program) => {
-      let assessment: EligibilityAssessmentResult;
-      try {
-        assessment = await assessEligibilityWithGemini(program, household, bill);
-      } catch (err) {
-        console.error(`Live eligibility assessment failed for ${program.id}:`, err);
-        assessment = fallbackAssessment("Live eligibility reasoning was unavailable for this program — treating it as unconfirmed.");
-      }
+export async function matchOpportunitiesLive(bills: UtilityBillExtraction[], household: HouseholdProfile): Promise<Opportunity[]> {
+  let assessments: Record<string, EligibilityAssessmentResult>;
+  try {
+    assessments = await assessEligibilityBatchWithGemini(INCENTIVE_PROGRAMS, household, bills);
+  } catch (err) {
+    console.error("Batched live eligibility assessment failed:", err);
+    assessments = {};
+  }
 
-      const evidence = buildLiveEvidence(program, household, assessment);
-      const hasFail = evidence.some((e) => e.status === "fail");
-      const hasUnknown = evidence.some((e) => e.status === "unknown");
-      const status: Opportunity["status"] = hasFail ? "not_eligible" : hasUnknown ? "needs_answers" : "ready_to_pursue";
-      const tenureUnresolved = evidence.some((e) => e.criterion === "Homeowner status" && e.status === "unknown");
+  return INCENTIVE_PROGRAMS.map((program) => {
+    const assessment =
+      assessments[program.id] ??
+      fallbackAssessment("Live eligibility reasoning was unavailable for this program — treating it as unconfirmed.");
 
-      return {
-        id: `opp-${program.id}`,
-        incentiveId: program.id,
-        title: program.name,
-        category: program.category,
-        ...estimateOpportunityEconomics(program),
-        eligibilityConfidence: hasFail ? 0.1 : assessment.confidence,
-        status,
-        reasoningSummary: assessment.explanation,
-        evidence,
-        unresolvedQuestions: tenureUnresolved ? ["Do you own or rent this property?"] : [],
-      };
-    })
-  );
+    const evidence = buildLiveEvidence(program, household, assessment);
+    const hasFail = evidence.some((e) => e.status === "fail");
+    const hasUnknown = evidence.some((e) => e.status === "unknown");
+    const status: Opportunity["status"] = hasFail ? "not_eligible" : hasUnknown ? "needs_answers" : "ready_to_pursue";
+    const tenureUnresolved = evidence.some((e) => e.criterion === "Homeowner status" && e.status === "unknown");
+
+    return {
+      id: `opp-${program.id}`,
+      incentiveId: program.id,
+      title: program.name,
+      category: program.category,
+      ...estimateOpportunityEconomicsFromUsage(program, household, bills),
+      eligibilityConfidence: hasFail ? 0.1 : assessment.confidence,
+      status,
+      reasoningSummary: assessment.explanation,
+      evidence,
+      unresolvedQuestions: tenureUnresolved ? ["Do you own or rent this property?"] : [],
+    };
+  });
 }

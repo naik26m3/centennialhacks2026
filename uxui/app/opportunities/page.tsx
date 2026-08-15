@@ -10,13 +10,13 @@ import { DemoModeBadge } from "@/components/DemoModeBadge";
 
 export default function OpportunitiesPage() {
   const router = useRouter();
-  const { bill, household, opportunities, hydrated, isLive } = useGreenlight();
+  const { bills, household, opportunities, hydrated, isLive } = useGreenlight();
 
   useEffect(() => {
-    if (hydrated && (!bill || !household)) router.replace("/");
-  }, [hydrated, bill, household, router]);
+    if (hydrated && (bills.length === 0 || !household)) router.replace("/");
+  }, [hydrated, bills, household, router]);
 
-  if (!bill || !household) return null;
+  if (bills.length === 0 || !household) return null;
 
   const pursuable = opportunities.filter((o) => o.status !== "not_eligible");
   const total = pursuable.reduce((sum, o) => sum + o.estimatedIncentive, 0);
@@ -64,7 +64,26 @@ export default function OpportunitiesPage() {
                   <dt className="text-ink-muted">Homeowner status</dt>
                   <dd className="capitalize">{household.tenure === "unknown" ? "Unresolved" : household.tenure}</dd>
                 </div>
+                {isLive && household.annualNaturalGasM3 !== null && (
+                  <div className="flex justify-between">
+                    <dt className="text-ink-muted">Annual gas usage</dt>
+                    <dd>{household.annualNaturalGasM3.toLocaleString("en-CA")} m³</dd>
+                  </div>
+                )}
+                {isLive && household.annualElectricityKwh !== null && (
+                  <div className="flex justify-between">
+                    <dt className="text-ink-muted">Annual electricity usage</dt>
+                    <dd>{household.annualElectricityKwh.toLocaleString("en-CA")} kWh</dd>
+                  </div>
+                )}
               </dl>
+              {isLive && (household.monthsOfDataUsed.electricity > 0 || household.monthsOfDataUsed.naturalGas > 0) && (
+                <p className="text-[11px] text-ink-muted mt-3">
+                  Annualized from {Math.max(household.monthsOfDataUsed.electricity, household.monthsOfDataUsed.naturalGas)} month
+                  {Math.max(household.monthsOfDataUsed.electricity, household.monthsOfDataUsed.naturalGas) === 1 ? "" : "s"} of
+                  uploaded bills.
+                </p>
+              )}
             </div>
             <Metric label="Programs tracked" value={String(opportunities.length)} />
           </div>

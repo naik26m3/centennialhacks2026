@@ -1,9 +1,12 @@
 import { BillUploader } from "@/components/BillUploader";
+import { AmbientBackground } from "@/components/AmbientBackground";
+import { BreathingSurface } from "@/components/motion/BreathingSurface";
 
 export default function Home() {
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 py-20">
-      <div className="w-full max-w-2xl flex flex-col items-center text-center gap-6">
+    <div className="relative flex-1 flex flex-col items-center justify-center px-4 sm:px-6 py-20">
+      <AmbientBackground />
+      <BreathingSurface className="w-full max-w-2xl flex flex-col items-center text-center gap-6">
         <p className="text-[13px] uppercase tracking-wide text-brand font-medium">
           Your personal sustainability negotiator
         </p>
@@ -19,7 +22,7 @@ export default function Home() {
         <p className="text-[13px] text-ink-muted max-w-sm">
           We never submit anything or contact anyone without your approval.
         </p>
-      </div>
+      </BreathingSurface>
     </div>
   );
 }

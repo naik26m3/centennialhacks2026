@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Leaf } from "lucide-react";
+import { SoundToggle } from "@/components/SoundToggle";
 
 export function SiteHeader() {
   return (
@@ -11,10 +12,13 @@ export function SiteHeader() {
           </span>
           Greenlight
         </Link>
-        <nav className="hidden sm:flex items-center gap-6 text-sm text-ink-soft">
-          <Link href="/opportunities" className="hover:text-ink">Opportunities</Link>
-          <Link href="/plan" className="hover:text-ink">Negotiator</Link>
-        </nav>
+        <div className="flex items-center gap-4">
+          <nav className="hidden sm:flex items-center gap-6 text-sm text-ink-soft">
+            <Link href="/opportunities" className="hover:text-ink">Opportunities</Link>
+            <Link href="/plan" className="hover:text-ink">Negotiator</Link>
+          </nav>
+          <SoundToggle />
+        </div>
       </div>
     </header>
   );

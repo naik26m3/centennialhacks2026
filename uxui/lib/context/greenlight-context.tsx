@@ -5,7 +5,7 @@ import { AgentCase, HouseholdProfile, Opportunity, UserGoal, UtilityBillExtracti
 import { analyzeBillDemo, buildAgentCase, buildHouseholdProfile, matchOpportunities, resolveTenureAnswer } from "@/lib/adapters/demo-provider";
 
 interface SessionState {
-  bill: UtilityBillExtraction | null;
+  bills: UtilityBillExtraction[];
   household: HouseholdProfile | null;
   opportunities: Opportunity[];
   cases: Record<string, AgentCase>;
@@ -13,12 +13,12 @@ interface SessionState {
   isLive: boolean;
 }
 
-const EMPTY_SESSION: SessionState = { bill: null, household: null, opportunities: [], cases: {}, goal: null, isLive: false };
+const EMPTY_SESSION: SessionState = { bills: [], household: null, opportunities: [], cases: {}, goal: null, isLive: false };
 
 interface GreenlightState extends SessionState {
   hydrated: boolean;
   startDemo: () => void;
-  startFromAnalysis: (bill: UtilityBillExtraction, household: HouseholdProfile, opportunities: Opportunity[], live: boolean) => void;
+  startFromAnalysis: (bills: UtilityBillExtraction[], household: HouseholdProfile, opportunities: Opportunity[], live: boolean) => void;
   answerTenure: (tenure: "owner" | "renter") => void;
   getOrCreateCase: (opportunityId: string) => AgentCase | null;
   setGoal: (goal: UserGoal | null) => void;
@@ -72,11 +72,11 @@ export function GreenlightProvider({ children }: { children: React.ReactNode }) 
   const startDemo = () => {
     const b = analyzeBillDemo();
     const h = buildHouseholdProfile();
-    setSession({ bill: b, household: h, opportunities: matchOpportunities(h), cases: {}, goal: null, isLive: false });
+    setSession({ bills: [b], household: h, opportunities: matchOpportunities(h), cases: {}, goal: null, isLive: false });
   };
 
-  const startFromAnalysis = (b: UtilityBillExtraction, h: HouseholdProfile, opps: Opportunity[], live: boolean) => {
-    setSession({ bill: b, household: h, opportunities: opps, cases: {}, goal: null, isLive: live });
+  const startFromAnalysis = (bills: UtilityBillExtraction[], h: HouseholdProfile, opps: Opportunity[], live: boolean) => {
+    setSession({ bills, household: h, opportunities: opps, cases: {}, goal: null, isLive: live });
   };
 
   const answerTenure = (tenure: "owner" | "renter") => {

@@ -25,6 +25,11 @@ export interface UtilityBillExtraction {
   naturalGas: { usageM3: number | null; cost: number | null } | null;
   totalAmount: number | null;
   currency: string;
+  // Gemini's own read on what the bill indicates the home heats with —
+  // interpreting the bill's language (including negations like "no natural
+  // gas service") is exactly what the model should do; a keyword scan over
+  // detectedHeatingClues can't reliably tell affirmation from negation.
+  primaryHeatingHint: HeatingType;
   detectedHeatingClues: string[];
   confidence: number;
   missingCriticalFields: string[];
@@ -47,6 +52,11 @@ export interface HouseholdProfile {
   primaryHeating: HeatingType;
   utilityProvider: string | null;
   annualElectricityKwh: number | null;
+  annualNaturalGasM3: number | null;
+  // How many uploaded bill-months informed the annualized usage figures above,
+  // per fuel — surfaced in the UI so an annualized-from-2-months estimate
+  // isn't presented as if it were a real 12-month figure.
+  monthsOfDataUsed: { electricity: number; naturalGas: number };
   existingEquipment: {
     smartThermostat: boolean;
     heatPump: boolean;
@@ -120,6 +130,10 @@ export interface Opportunity {
   estimatedIncentive: number;
   estimatedUpfrontCost: number;
   estimatedAnnualSavings: number;
+  // Whether estimatedAnnualSavings came from real usage math (this household's
+  // own bill data) or a generic per-category constant — surfaced in the UI so
+  // the two are never presented as equally precise.
+  savingsBasis: "usage_derived" | "category_estimate";
   estimatedPaybackYears: number | null;
   estimatedCo2ReductionKg: number;
   eligibilityConfidence: number;
