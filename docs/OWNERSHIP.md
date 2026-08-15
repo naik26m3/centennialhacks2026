@@ -18,6 +18,7 @@ their slice, commits only that scope, and then marks it available.
 | `app/api/cases/[id]/answers/**`, `lib/evaluation/**`, `tests/evaluation.test.ts` | evaluation-orchestration Luna agent | active |
 | `db/seeds/003_program_registry.sql`, `tests/program-registry.test.ts` | program-registry Luna agent | active |
 | `app/api/uploads/[documentId]/complete/**`, `tests/upload-complete.test.ts` | upload-completion Luna agent | active |
+| `scripts/full-pipeline-smoke.ts` | coordinating agent | active |
 | `uxui/**` | Codex final experience transformation | complete — available |
 | `scripts/build-claude-review.mjs`, `GREENLIGHT_CLAUDE_REVIEW.html` | Codex final experience dossier refresh | complete — available |
 | `README.md`, `docs/PRD.md` | documentation cleanup agent | complete — available |
