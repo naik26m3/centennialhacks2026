@@ -13,8 +13,9 @@ their slice, commits only that scope, and then marks it available.
 | `infra/aws/**` | AWS infrastructure agent | complete — available |
 | `scripts/ingest-legal-sources.ts`, `tests/ingest-script.test.ts` | embedding-ingestion Luna agent | active |
 | `lib/ocr/**`, `scripts/ocr-smoke.ts`, `tests/ocr.test.ts` | Gemini OCR Luna agent | active — user reassigned for this slice |
-| `app/api/documents/**`, `lib/documents/**`, `tests/documents.test.ts` | document-pipeline Luna agent | active |
-| `app/api/opportunities/**`, `app/api/actions/**`, `lib/actions/**`, `tests/actions.test.ts` | action-approval Luna agent | active |
+| `app/api/documents/[documentId]/analyze/**` | document-pipeline Luna agent | complete — available |
+| `app/api/documents/[documentId]/fields/**`, `lib/documents/**`, `tests/documents.test.ts` | field-review Luna agent | active |
+| `app/api/opportunities/**`, `app/api/actions/**`, `lib/actions/**`, `tests/actions.test.ts` | action-safety Luna agent | active |
 | `app/api/cases/[id]/answers/**`, `lib/evaluation/**`, `tests/evaluation.test.ts` | evaluation-orchestration Luna agent | active |
 | `db/seeds/003_program_registry.sql`, `tests/program-registry.test.ts` | program-registry Luna agent | active |
 | `app/api/uploads/[documentId]/complete/**`, `tests/upload-complete.test.ts` | upload-completion Luna agent | active |
