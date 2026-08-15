@@ -14,6 +14,19 @@ test("program registry seed covers five current official programs safely", async
   assert.deepEqual(versionKeys, programs);
   assert.match(sql, /status\s*=\s*EXCLUDED\.status/);
 
+  const routeDestinations = [...sql.matchAll(/,\s*'(official_portal|web_form|mail|intake_agency|phone)',\s*\n\s*'([^']+)'/g)]
+    .map((match) => ({ type: match[1], destination: match[2] }));
+  assert.equal(routeDestinations.length, 7);
+  for (const route of routeDestinations) {
+    if (route.type === "phone") {
+      assert.match(route.destination, /^tel:\+1\d{10}$/);
+      continue;
+    }
+    const parsed = new URL(route.destination);
+    assert.equal(parsed.protocol, "https:");
+    assert.ok(["oeb.ca", "www.oeb.ca", "saveonenergy.ca", "www.toronto.ca"].includes(parsed.hostname));
+  }
+
   const urls = [...sql.matchAll(/https:\/\/[^\s'"\\,)]+/g)].map((match) => match[0]);
   assert.ok(urls.length > 0);
   for (const url of urls) {

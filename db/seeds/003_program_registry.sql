@@ -116,7 +116,7 @@ VALUES
     '{"sourceUrl":"https://saveonenergy.ca/en/For-Your-Home/Energy-Affordability-Program","steps":["Use the official EAP Get started form or phone route."]}'::jsonb,
     true, '2026-08-15T00:00:00Z'::timestamptz, '2027-08-15T00:00:00Z'::timestamptz),
   ((SELECT id FROM registry_versions WHERE canonical_key = 'eap'), 'phone', 'phone',
-    'https://saveonenergy.ca/en/For-Your-Home/Energy-Affordability-Program',
+    'tel:+18447703148',
     '{"sourceUrl":"https://saveonenergy.ca/en/For-Your-Home/Energy-Affordability-Program","phone":"1-844-770-3148","steps":["Call the official EAP number shown on the program page."]}'::jsonb,
     true, '2026-08-15T00:00:00Z'::timestamptz, '2027-08-15T00:00:00Z'::timestamptz),
   ((SELECT id FROM registry_versions WHERE canonical_key = 'home_renovation_savings'), 'official_program_page', 'official_portal',
