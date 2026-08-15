@@ -1,8 +1,8 @@
 # Centennial Hacks 2026
 
-Greenlight uses Next.js and TypeScript to turn utility bills into verified
-savings opportunities and official next steps. The backend is isolated in
-`backend/`; the frontend teammate owns `uxui/`.
+Greenlight is one Next.js and TypeScript application that turns utility bills
+into verified savings opportunities and official next steps. The frontend
+teammate owns `uxui/` and will port its design into the root application.
 
 There is no separate Python backend. Do not add FastAPI or FastMCP.
 
@@ -19,7 +19,6 @@ Requirements:
 - npm
 
 ```bash
-cd backend
 npm install
 npm run dev
 ```
@@ -42,8 +41,8 @@ npm run typecheck
 
 ## Environment
 
-Copy `backend/.env.example` to `backend/.env.local` and provide a Gemini API
-key. Never commit the local environment file.
+Copy `.env.example` to `.env.local` and provide a Gemini API key. Never commit
+the local environment file.
 
 ## API
 
@@ -58,11 +57,11 @@ code will own eligibility and financial calculations.
 
 Keep backend work isolated from the frontend teammate:
 
-- `backend/app/api/` — backend Route Handlers
-- `backend/lib/reasoning/` — grounded Gemini research
-- `backend/lib/ocr/` — reserved for the OCR teammate
+- `app/api/` — backend Route Handlers
+- `lib/reasoning/` — grounded Gemini research
+- `lib/ocr/` — reserved for the OCR teammate
 - `uxui/` — frontend teammate's application; backend agents do not touch it
 - `docs/` — product requirements and ownership coordination
-- `backend/public/` — backend static assets, if needed
+- `public/` — root application static assets
 
 Use Next.js Route Handlers for backend functionality.

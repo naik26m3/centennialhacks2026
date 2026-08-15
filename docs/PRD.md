@@ -18,9 +18,9 @@ Greenlight is not a chatbot and not a generic OCR demo. Its differentiator is co
 
 ## 2. Decisions that override older plans
 
-- Build the backend API as a **Next.js TypeScript** application in `backend/`.
-- Treat `uxui/` as an independently owned design application; backend agents must not modify it.
-- Deploy the backend Route Handlers as their own **Vercel** project rooted at `backend/`.
+- Build one full-stack **Next.js TypeScript** application at the repository root.
+- Treat `uxui/` as independently owned design source; backend agents must not modify it while the frontend teammate ports it into the root application.
+- Deploy the root application and its Route Handlers as one **Vercel** project.
 - Use **Clerk** for authentication and server-side authorization.
 - Use **Railway PostgreSQL** as the canonical relational database.
 - Use **private Amazon S3** for uploads and source snapshots.
@@ -29,7 +29,7 @@ Greenlight is not a chatbot and not a generic OCR demo. Its differentiator is co
 - Do not add Python, FastAPI, FastMCP, Expo, Lambda, API Gateway, Step Functions, DynamoDB, or a separate backend service for the MVP.
 - Do not implement frontend pages or visual design in this workstream; a teammate owns UI. The backend must expose stable contracts for that teammate.
 
-Next.js Route Handlers provide custom HTTP handlers inside the App Router, so a separate API framework is unnecessary for this scope ([Next.js Route Handler reference](https://nextjs.org/docs/app/building-your-application/routing/route-handlers)). Vercel deploys dynamic Next.js code as Vercel Functions and supports the Node.js runtime required by the AWS, Clerk, database, and Gemini SDKs ([Vercel runtimes](https://vercel.com/docs/functions/runtimes)). Keeping the backend in `backend/` prevents backend agents and the UI teammate from colliding during the hackathon.
+Next.js Route Handlers provide custom HTTP handlers inside the App Router, so a separate API framework is unnecessary for this scope ([Next.js Route Handler reference](https://nextjs.org/docs/app/building-your-application/routing/route-handlers)). Vercel deploys dynamic Next.js code as Vercel Functions and supports the Node.js runtime required by the AWS, Clerk, database, and Gemini SDKs ([Vercel runtimes](https://vercel.com/docs/functions/runtimes)). Path ownership keeps backend agents and the UI teammate from colliding without creating a second application.
 
 ## 3. Users and problem
 
@@ -109,7 +109,7 @@ An Ontario resident who receives an electricity or other utility bill and wants 
 
 ```mermaid
 flowchart TB
-    CLIENT["uxui/ owned by frontend teammate"] -->|Clerk session| API["backend/ Next.js Route Handlers on Vercel"]
+    CLIENT["root UI ported from uxui/"] -->|Clerk session| API["root Next.js Route Handlers on Vercel"]
     API --> AUTH["Clerk authorization"]
     API --> DB[("Railway PostgreSQL")]
 

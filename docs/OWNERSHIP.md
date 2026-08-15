@@ -5,12 +5,13 @@ their slice, commits only that scope, and then marks it available.
 
 | Scope | Owner | Status |
 |---|---|---|
-| `backend/app/api/**`, `backend/lib/reasoning/**`, `backend/tests/**` | backend/reasoning agent | active |
-| `backend/lib/ocr/**` | OCR teammate | reserved |
+| `app/api/**`, `lib/reasoning/**`, `tests/reasoning.test.ts` | backend/reasoning agent | active |
+| `lib/eligibility/**`, `lib/financial/**`, `tests/engines.test.ts` | deterministic-engine agent | active |
+| `db/**` | database agent | active |
+| `lib/ocr/**` | OCR teammate | reserved |
 | `uxui/**` | frontend teammate | reserved — do not touch |
 | `docs/PRD.md` | product research | complete |
-| `backend/package.json`, backend lockfile/config | backend/reasoning agent | active |
-| root config, `AGENTS.md`, `docs/OWNERSHIP.md` | coordinating agent | active |
+| root package/config, `AGENTS.md`, `docs/OWNERSHIP.md` | coordinating agent | active |
 
-Shared contracts belong in `backend/lib/contracts/**`. Coordinate changes to those
+Shared contracts belong in `lib/contracts/**`. Coordinate changes to those
 files here before editing; do not reach into another owner's implementation.
