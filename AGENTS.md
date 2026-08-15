@@ -7,18 +7,18 @@ Use the upstream skills in `.agents/skills/`. They are copied into this reposito
 ## Architecture direction
 
 - Treat `docs/PRD.md` as the product and architecture source of truth.
-- Build one TypeScript Next.js App Router application. Use Route Handlers for the API and the Node.js runtime for server integrations.
+- Build the backend as a TypeScript Next.js App Router application in `backend/`. Use Route Handlers for the API and the Node.js runtime for server integrations.
 - Do not add Python, FastAPI, FastMCP, Expo, or a separate backend service.
 - Deploy the Next.js application to Vercel, use Clerk for authentication, Railway PostgreSQL for relational data, private Amazon S3 for documents, Textract for OCR/evidence, and Gemini for normalization and explanations.
 - Deterministic TypeScript code owns eligibility and financial calculations. Gemini may explain verified results but must not invent eligibility, dollar amounts, contacts, or sources.
-- The frontend teammate owns pages, components, styling, and visual design. Backend agents must not edit frontend files unless the user explicitly reassigns that work.
-- The OCR teammate owns `lib/ocr/**`. API/reasoning agents must consume the shared OCR contract and must not edit the OCR implementation.
+- The frontend teammate exclusively owns `uxui/**`. Backend agents must not edit, format, install dependencies in, or generate files inside that directory unless the user explicitly reassigns it.
+- The OCR teammate owns `backend/lib/ocr/**`. API/reasoning agents must consume the shared OCR contract and must not edit the OCR implementation.
 - Keep the hackathon MVP small: PostgreSQL full-text retrieval over reviewed official-source snapshots is the initial RAG implementation. Add vector infrastructure only after measured need.
 
 ## Parallel ownership
 
 - Read `docs/OWNERSHIP.md` before editing and claim an unowned path there first.
-- One owner edits a path at a time. Shared files such as `package.json`, lockfiles, `AGENTS.md`, and `lib/contracts/**` require explicit coordination in the ownership file.
+- One owner edits a path at a time. Shared root files such as `AGENTS.md` require explicit coordination in the ownership file. Backend package files live under `backend/`.
 - Commit only files in your claimed scope. Never stage or commit another agent's unfinished changes.
 - Work directly on `main` for this hackathon; do not create branches or worktrees unless the user changes this policy.
 - Keep commits atomic and leave `main` buildable. Run the relevant check before each commit.

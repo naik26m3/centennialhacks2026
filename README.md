@@ -1,14 +1,15 @@
 # Centennial Hacks 2026
 
-Greenlight is a single full-stack Next.js application that turns utility bills
-into verified savings opportunities and official next steps. The frontend,
-API routes, and server-side logic all use TypeScript.
+Greenlight uses Next.js and TypeScript to turn utility bills into verified
+savings opportunities and official next steps. The backend is isolated in
+`backend/`; the frontend teammate owns `uxui/`.
 
 There is no separate Python backend. Do not add FastAPI or FastMCP.
 
-The current workstream is backend-only. A frontend teammate owns pages,
-components, styling, and visual design. See [the PRD](docs/PRD.md) and
-[the ownership map](docs/OWNERSHIP.md) before editing.
+The current workstream is backend-only. A frontend teammate exclusively owns
+`uxui/`; backend agents must not modify anything there. See
+[the PRD](docs/PRD.md) and [the ownership map](docs/OWNERSHIP.md) before
+editing.
 
 ## Development
 
@@ -18,11 +19,12 @@ Requirements:
 - npm
 
 ```bash
+cd backend
 npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+The API is available at [http://localhost:3000/api](http://localhost:3000/api).
 
 ## Production build
 
@@ -40,8 +42,8 @@ npm run typecheck
 
 ## Environment
 
-Copy `.env.example` to `.env.local` and provide a Gemini API key. Never commit
-the local environment file.
+Copy `backend/.env.example` to `backend/.env.local` and provide a Gemini API
+key. Never commit the local environment file.
 
 ## API
 
@@ -54,17 +56,13 @@ code will own eligibility and financial calculations.
 
 ## Project structure
 
-Keep the application in one Next.js codebase:
+Keep backend work isolated from the frontend teammate:
 
-- `app/api/` — backend Route Handlers
-- `app/` — frontend pages and layouts owned by the UI teammate
-- `components/` — reusable UI components
-- `lib/reasoning/` — grounded Gemini research
-- `lib/ocr/` — reserved for the OCR teammate
-- `lib/` — other shared TypeScript utilities and integrations
+- `backend/app/api/` — backend Route Handlers
+- `backend/lib/reasoning/` — grounded Gemini research
+- `backend/lib/ocr/` — reserved for the OCR teammate
+- `uxui/` — frontend teammate's application; backend agents do not touch it
 - `docs/` — product requirements and ownership coordination
-- `public/` — static assets
+- `backend/public/` — backend static assets, if needed
 
-Use Next.js route handlers or server actions for backend functionality. Add a
-separate service only when the project has a concrete requirement that Next.js
-cannot meet.
+Use Next.js Route Handlers for backend functionality.
