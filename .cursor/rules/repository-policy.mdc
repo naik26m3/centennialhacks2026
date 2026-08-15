@@ -1,0 +1,6 @@
+---
+description: Repository-wide agent policy
+alwaysApply: true
+---
+
+Follow the repository's `AGENTS.md`. Never run or bypass `git commit`; only the human owner may commit.

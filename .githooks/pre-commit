@@ -1,0 +1,9 @@
+#!/usr/bin/env sh
+
+if [ "${ALLOW_HUMAN_COMMIT:-}" = "1" ]; then
+  exit 0
+fi
+
+echo "Commit blocked: coding agents may not commit in this repository." >&2
+echo "A human may intentionally override with: ALLOW_HUMAN_COMMIT=1 git commit ..." >&2
+exit 1
