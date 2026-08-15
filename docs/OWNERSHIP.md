@@ -12,7 +12,8 @@ their slice, commits only that scope, and then marks it available.
 | `infra/aws/**` | AWS infrastructure agent | complete — available |
 | `lib/ocr/**` | OCR teammate | reserved |
 | `uxui/**` | frontend teammate | reserved — do not touch |
-| `README.md`, `docs/PRD.md`, `docs/BACKEND_TODO.md`, `docs/OWNERSHIP.md` | documentation cleanup agent | complete — available |
+| `README.md`, `docs/PRD.md` | documentation cleanup agent | complete — available |
+| `docs/BACKEND_TODO.md`, `docs/OWNERSHIP.md` | backend documentation status sync | complete — available |
 | root package/config, `AGENTS.md` | coordinating agent | active |
 
 Shared contracts belong in `lib/contracts/**`. Coordinate changes to those
