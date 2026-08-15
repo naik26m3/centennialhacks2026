@@ -10,10 +10,10 @@ export default function Home() {
       <div className="relative z-10 mx-auto flex w-full max-w-4xl flex-col items-center text-center">
         <CinematicReveal className="flex w-full flex-col items-center">
           <h1 className="max-w-4xl text-balance text-[clamp(2.65rem,6vw,5rem)] font-semibold leading-[0.98] tracking-[-0.055em] text-[#173d2a] drop-shadow-[0_2px_18px_rgba(250,249,245,0.45)]">
-            Find what your home is already eligible for.
+            Your home may be leaving thousands behind.
           </h1>
           <p className="mt-5 max-w-2xl text-balance text-[15px] leading-relaxed text-[#284a38]/80 sm:mt-6 sm:text-[18px]">
-            Upload your utility bills. Greenlight finds the verified incentives, calculates the value, and prepares the next step.
+            Upload a bill. We expose verified incentives, show what they are worth, and prepare the path to claim them.
           </p>
         </CinematicReveal>
 

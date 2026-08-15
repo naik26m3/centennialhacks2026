@@ -57,10 +57,10 @@ export default function AgentCasePage({ params }: { params: Promise<{ caseId: st
     <div className="flex-1 px-4 sm:px-6 py-10">
       <div className="mx-auto max-w-4xl">
         <div className="flex items-center justify-between mb-1">
-          <p className="text-[13px] text-ink-muted">Preparing your next step</p>
+          <p className="text-[13px] text-ink-muted">Turning eligibility into action</p>
           <DemoModeBadge live={isLive} />
         </div>
-        <h1 className="text-2xl font-medium mb-6">Let Greenlight handle the paperwork</h1>
+        <h1 className="text-2xl font-medium mb-6">Do not let the paperwork cost you this opportunity</h1>
 
         <div className="grid lg:grid-cols-[1fr_320px] gap-6">
           <div className="order-2 lg:order-1">
@@ -108,7 +108,7 @@ export default function AgentCasePage({ params }: { params: Promise<{ caseId: st
                         {agentCase.draftMessage}
                       </pre>
                       <p className="text-[11px] text-ink-muted mt-2">
-                        We draft it, you review and send it — Greenlight never submits anything on your behalf without approval.
+                        We draft it. You review and send it. Greenlight never submits anything without your approval.
                       </p>
                       <div className="flex gap-2 mt-3">
                         <TactileButton

@@ -25,7 +25,7 @@ export default function OpportunitiesPage() {
     <div className="flex-1 px-4 sm:px-6 py-10">
       <div className="mx-auto max-w-5xl">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-xl font-medium">Findings</h1>
+          <h1 className="text-xl font-medium">Money your home may be missing</h1>
           <DemoModeBadge live={isLive} />
         </div>
 

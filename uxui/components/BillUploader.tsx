@@ -113,8 +113,8 @@ export function BillUploader() {
       play("error");
       setError(
         err instanceof DOMException && err.name === "TimeoutError"
-          ? "That's taking much longer than expected — try again, or try the demo household below."
-          : "Couldn't analyze those files — try again, or try the demo household below."
+          ? "That is taking much longer than expected. Try again or use the demo household below."
+          : "We could not analyze those files. Try again or use the demo household below."
       );
       setIsAnalyzing(false);
     }
@@ -162,7 +162,7 @@ export function BillUploader() {
               </li>
             ))}
           </ul>
-          <p className="relative mt-5 text-[11px] text-ink-muted">Live document analysis usually takes 20–30 seconds.</p>
+          <p className="relative mt-5 text-[11px] text-ink-muted">Live document analysis usually takes 20-30 seconds.</p>
         </div>
       ) : (
         <motion.button
@@ -185,7 +185,7 @@ export function BillUploader() {
             <Upload size={21} strokeWidth={1.7} aria-hidden="true" />
           </span>
           <span className="mt-1 text-[16px] font-semibold text-brand">
-            {isDraggingOver ? "Drop it here — we'll take it from here" : "Drop your utility bills here"}
+            {isDraggingOver ? "Drop it here. We will take it from here." : "Put your utility bills to work"}
           </span>
           <span className="max-w-sm text-[12.5px] leading-relaxed text-ink-soft/75">
             PDF or photo · electricity and gas bills can be added together
@@ -264,7 +264,7 @@ export function BillUploader() {
               onClick={goToDemo}
               className="rounded-xl bg-brand py-3 text-[14px] font-semibold text-white shadow-[0_9px_24px_rgba(31,92,63,0.20)] transition-colors hover:bg-[#174c33]"
             >
-              Try a demo household
+              Reveal a demo household
             </TactileButton>
           )}
           <TactileButton

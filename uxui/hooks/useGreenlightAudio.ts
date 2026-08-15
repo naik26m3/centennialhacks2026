@@ -11,6 +11,8 @@ import {
   subscribeMutePreference,
 } from "@/lib/audio/preferences";
 
+const WELCOME_PLAYED_KEY = "greenlight:welcome-played";
+
 // Components only ever call audio.play("tap") etc. — they never touch the
 // engine, the AudioContext, or a file name directly (spec §44).
 export function useGreenlightAudio() {
@@ -33,13 +35,20 @@ export function useGreenlightAudio() {
     }
   }, []);
 
-  // Called on the app's first pointer/keyboard interaction (see
-  // components/AudioBootstrap.tsx) — starts the ambient bed only if the
-  // user hasn't previously muted.
+  // Play one short welcome bloom per browser-tab session. sessionStorage
+  // survives route changes and reloads, then resets when the browsing
+  // session ends. This prevents a persistent tone or repeated page chime.
   const beginAmbientIfAllowed = useCallback(() => {
     initAudio();
     engineSetMuted(getMutePreferenceSnapshot());
-    if (!getMutePreferenceSnapshot()) startAmbient();
+    if (getMutePreferenceSnapshot()) return;
+    try {
+      if (window.sessionStorage.getItem(WELCOME_PLAYED_KEY) === "true") return;
+      window.sessionStorage.setItem(WELCOME_PLAYED_KEY, "true");
+    } catch {
+      // If storage is unavailable, a single mount-scoped attempt is still safe.
+    }
+    startAmbient();
   }, []);
 
   return { play, muted, toggleMuted, beginAmbientIfAllowed, duck: duckAmbient };

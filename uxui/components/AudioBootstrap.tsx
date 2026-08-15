@@ -3,9 +3,8 @@
 import { useEffect } from "react";
 import { useGreenlightAudio } from "@/hooks/useGreenlightAudio";
 
-// Renders nothing — just waits for the app's first pointer/keyboard
-// interaction (browsers block audio before a real user gesture) and starts
-// the ambient bed then, per spec §22/§59. Mounted once in app/layout.tsx.
+// Renders nothing. It waits for the first real interaction, then plays the
+// short session welcome. Browsers do not permit sound before a gesture.
 export function AudioBootstrap() {
   const { beginAmbientIfAllowed } = useGreenlightAudio();
 

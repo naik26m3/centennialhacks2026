@@ -29,9 +29,9 @@ export default function PlanPage() {
   return (
     <div className="flex-1 px-4 sm:px-6 py-10">
       <div className="mx-auto max-w-2xl">
-        <h1 className="text-2xl font-medium mb-1">Give us the constraint</h1>
+        <h1 className="text-2xl font-medium mb-1">Tell us what winning looks like</h1>
         <p className="text-[14px] text-ink-soft mb-6">
-          Tell Greenlight what to optimize for and it will negotiate the best realistic combination of the programs it found.
+          Choose what matters most. Greenlight will shape the strongest realistic path from the programs it uncovered.
         </p>
 
         <div className="flex flex-wrap gap-2 mb-4">
@@ -60,7 +60,7 @@ export default function PlanPage() {
             className="flex-1 rounded-lg border border-line px-3 py-2.5 text-[14px] bg-card focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
           />
           <button type="submit" className="rounded-lg bg-ink text-white text-[14px] font-medium px-4 py-2.5 hover:bg-ink/90">
-            Negotiate
+            Build my plan
           </button>
         </form>
 

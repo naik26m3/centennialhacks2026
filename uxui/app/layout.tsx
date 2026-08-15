@@ -5,7 +5,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { AudioBootstrap } from "@/components/AudioBootstrap";
 
 export const metadata: Metadata = {
-  title: "Greenlight — make the greener move the obvious move",
+  title: "Greenlight | Make the greener move the obvious move",
   description:
     "Your personal sustainability negotiator. Upload a utility bill, Greenlight finds the incentives you qualify for and prepares the paperwork to claim them.",
 };

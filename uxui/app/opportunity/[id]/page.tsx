@@ -46,7 +46,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                   value={`$${opportunity.estimatedAnnualSavings.toLocaleString("en-CA")}`}
                   tone="success"
                 />
-                <Metric label="Payback" value={opportunity.estimatedPaybackYears ? `${opportunity.estimatedPaybackYears} yrs` : "—"} />
+                <Metric label="Payback" value={opportunity.estimatedPaybackYears ? `${opportunity.estimatedPaybackYears} yrs` : "Not available"} />
               </div>
             </div>
             <SourceBadge url={program.officialUrl} label={program.actionRoute.sourceTitle ?? "Official program page"} verifiedAt={program.lastVerifiedAt} />

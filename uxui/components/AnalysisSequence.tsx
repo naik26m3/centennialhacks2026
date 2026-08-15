@@ -9,14 +9,14 @@ import { useGreenlightAudio } from "@/hooks/useGreenlightAudio";
 import { motionTokens } from "@/lib/motion/tokens";
 
 const STEPS = [
-  "Reading document",
-  "Toronto, Ontario",
-  "Residential gas account · Enbridge Gas detected",
-  "Billing structure detected",
-  "Potential efficiency opportunity detected",
-  "Building household profile",
-  "Searching programs",
-  "Resolving administrators and required actions",
+  "Reading the story inside your bill",
+  "Home located: Toronto, Ontario",
+  "Utility account found: Enbridge Gas",
+  "Reconstructing how your home uses energy",
+  "Spotting where money may be slipping away",
+  "Building your household profile",
+  "Searching every verified program",
+  "Finding the shortest path to claim them",
 ];
 
 export function AnalysisSequence() {
