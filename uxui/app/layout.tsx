@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import "./globals.css";
 import { GreenlightProvider } from "@/lib/context/greenlight-context";
 import { SiteHeader } from "@/components/SiteHeader";
 import { AudioBootstrap } from "@/components/AudioBootstrap";
+import { PresentationControls } from "@/components/PresentationControls";
 
 export const metadata: Metadata = {
   title: "Greenlight | Make the greener move the obvious move",
@@ -16,6 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-full flex flex-col bg-canvas text-ink">
         <GreenlightProvider>
           <AudioBootstrap />
+          <Suspense fallback={null}><PresentationControls /></Suspense>
           <SiteHeader />
           <main className="flex-1 flex flex-col">{children}</main>
         </GreenlightProvider>

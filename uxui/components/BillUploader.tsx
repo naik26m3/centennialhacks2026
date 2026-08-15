@@ -5,11 +5,12 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Camera, CheckCircle2, FileText, Loader2, Upload, X } from "lucide-react";
 import { useGreenlight } from "@/lib/context/greenlight-context";
-import { HouseholdProfile, Opportunity, UtilityBillExtraction } from "@/lib/types";
+import { HouseholdProfile, Opportunity, OptimizationObjective, UtilityBillExtraction } from "@/lib/types";
 import { TactileButton } from "@/components/motion/TactileButton";
 import { CinematicReveal } from "@/components/motion/CinematicReveal";
 import { useGreenlightAudio } from "@/hooks/useGreenlightAudio";
 import { motionTokens } from "@/lib/motion/tokens";
+import { ObjectiveSelector } from "@/components/ObjectiveSelector";
 
 interface AnalyzeResponse {
   mode: "live" | "demo";
@@ -47,6 +48,8 @@ export function BillUploader() {
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
+  const [choosingObjective, setChoosingObjective] = useState(false);
+  const [usingDemo, setUsingDemo] = useState(false);
 
   // stepIndex resets when analysis *starts* (in analyzeFiles below, already
   // an event handler) — not here. The step panel only renders while
@@ -76,6 +79,8 @@ export function BillUploader() {
     if (files.length === 0) return;
     setError(null);
     play("upload");
+    setUsingDemo(false);
+    setChoosingObjective(true);
     setSelectedFiles((prev) => {
       const existingKeys = new Set(prev.map(fileKey));
       const next = files.filter((f) => !existingKeys.has(fileKey(f)));
@@ -88,11 +93,21 @@ export function BillUploader() {
   };
 
   const goToDemo = () => {
-    startDemo();
-    router.push("/analyze");
+    play("upload");
+    setUsingDemo(true);
+    setChoosingObjective(true);
   };
 
-  const analyzeFiles = async () => {
+  const beginWithObjective = (objective: OptimizationObjective) => {
+    if (usingDemo) {
+      startDemo(objective);
+      router.push("/analyze");
+      return;
+    }
+    void analyzeFiles(objective);
+  };
+
+  const analyzeFiles = async (objective: OptimizationObjective) => {
     if (selectedFiles.length === 0) return;
     setIsAnalyzing(true);
     setStepIndex(0);
@@ -107,7 +122,7 @@ export function BillUploader() {
       });
       if (!res.ok) throw new Error(`Analysis request failed (${res.status})`);
       const result: AnalyzeResponse = await res.json();
-      startFromAnalysis(result.bills, result.household, result.opportunities, result.mode === "live");
+      startFromAnalysis(result.bills, result.household, result.opportunities, result.mode === "live", objective);
       router.push("/analyze");
     } catch (err) {
       play("error");
@@ -164,6 +179,15 @@ export function BillUploader() {
           </ul>
           <p className="relative mt-5 text-[11px] text-ink-muted">Live document analysis usually takes 20-30 seconds.</p>
         </div>
+      ) : choosingObjective ? (
+        <ObjectiveSelector
+          sourceLabel={usingDemo ? "Sample household ready" : `${selectedFiles.length} bill${selectedFiles.length === 1 ? "" : "s"} accepted`}
+          onSelect={beginWithObjective}
+          onBack={() => {
+            setChoosingObjective(false);
+            setUsingDemo(false);
+          }}
+        />
       ) : (
         <motion.button
           onClick={() => inputRef.current?.click()}
@@ -217,7 +241,7 @@ export function BillUploader() {
         }}
       />
 
-      {!isAnalyzing && selectedFiles.length > 0 && (
+      {!isAnalyzing && !choosingObjective && selectedFiles.length > 0 && (
         <ul className="mt-3 flex flex-col gap-1.5 px-1">
           <AnimatePresence initial={false}>
             {selectedFiles.map((f) => (
@@ -250,14 +274,14 @@ export function BillUploader() {
         </CinematicReveal>
       )}
 
-      {!isAnalyzing && (
+      {!isAnalyzing && !choosingObjective && (
         <div className="mt-3 flex flex-col gap-2 sm:grid sm:grid-cols-2">
           {selectedFiles.length > 0 ? (
             <TactileButton
-              onClick={analyzeFiles}
+              onClick={() => setChoosingObjective(true)}
               className="rounded-xl bg-brand py-3 text-[14px] font-semibold text-white shadow-[0_9px_24px_rgba(31,92,63,0.20)] transition-colors hover:bg-[#174c33]"
             >
-              {`Analyze ${selectedFiles.length} bill${selectedFiles.length === 1 ? "" : "s"}`}
+              Choose what matters
             </TactileButton>
           ) : (
             <TactileButton
@@ -277,7 +301,7 @@ export function BillUploader() {
           </TactileButton>
         </div>
       )}
-      {!isAnalyzing && selectedFiles.length > 0 && (
+      {!isAnalyzing && !choosingObjective && selectedFiles.length > 0 && (
         <button
           onClick={goToDemo}
           className="mt-2 w-full text-center text-[12px] text-ink-muted hover:text-ink transition-colors"

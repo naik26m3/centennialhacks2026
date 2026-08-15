@@ -22,7 +22,7 @@
   </style>
 </head>
 <body>
-  <header class="topbar"><div class="shell"><div class="brand"><span class="mark">G</span>Greenlight review dossier</div><div class="meta">Generated 2026-08-15T20:18:08.705Z | 51 source files | 180 KB source</div></div></header>
+  <header class="topbar"><div class="shell"><div class="brand"><span class="mark">G</span>Greenlight review dossier</div><div class="meta">Generated 2026-08-15T20:41:33.057Z | 58 source files | 228 KB source</div></div></header>
   <main>
     <div class="hero" aria-label="Static visual preview of the Greenlight home screen">
       <div class="preview-nav"><strong>Greenlight</strong><nav><span>Opportunities</span><span>Plan</span><span>Sound</span></nav></div>
@@ -70,8 +70,8 @@ their slice, commits only that scope, and then marks it available.
 | `data/legal-sources.json`, `lib/ingestion/**`, `tests/ingestion.test.ts` | backend/RAG agent | complete — available |
 | `infra/aws/**` | AWS infrastructure agent | complete — available |
 | `lib/ocr/**` | OCR teammate | reserved |
-| `uxui/**` | Codex audio, copy, and Claude review handoff | complete — available |
-| `scripts/build-claude-review.mjs`, `GREENLIGHT_CLAUDE_REVIEW.html` | Codex Claude review handoff | complete — available |
+| `uxui/**` | Codex final experience transformation | active (user reassigned 2026-08-15) |
+| `scripts/build-claude-review.mjs`, `GREENLIGHT_CLAUDE_REVIEW.html` | Codex final experience dossier refresh | active (user reassigned 2026-08-15) |
 | `README.md`, `docs/PRD.md` | documentation cleanup agent | complete — available |
 | `docs/BACKEND_TODO.md`, `docs/OWNERSHIP.md` | backend documentation status sync | complete — available |
 | root package/config, `AGENTS.md` | coordinating agent | active |
@@ -777,7 +777,7 @@ Open `http://localhost:3000`, click &quot;Try a demo household.&quot;
 </code></pre>
     </details>
 <details class="source" data-search="uxui/app/agent/[caseid]/page.tsx" >
-      <summary><span>uxui/app/agent/[caseId]/page.tsx</span><small>156 lines</small></summary>
+      <summary><span>uxui/app/agent/[caseId]/page.tsx</span><small>165 lines</small></summary>
       <pre><code>&quot;use client&quot;;
 
 import { useEffect, useRef, useState, use } from &quot;react&quot;;
@@ -787,7 +787,9 @@ import { useGreenlight } from &quot;@/lib/context/greenlight-context&quot;;
 import { AgentTimeline } from &quot;@/components/AgentTimeline&quot;;
 import { AdministratorChain } from &quot;@/components/AdministratorChain&quot;;
 import { ApplicationPacket } from &quot;@/components/ApplicationPacket&quot;;
+import { DemoResolution } from &quot;@/components/DemoResolution&quot;;
 import { DemoModeBadge } from &quot;@/components/DemoModeBadge&quot;;
+import { EligibilityDelta } from &quot;@/components/EligibilityDelta&quot;;
 import { CinematicReveal } from &quot;@/components/motion/CinematicReveal&quot;;
 import { TactileButton } from &quot;@/components/motion/TactileButton&quot;;
 import { useGreenlightAudio } from &quot;@/hooks/useGreenlightAudio&quot;;
@@ -796,10 +798,12 @@ import { motionTokens } from &quot;@/lib/motion/tokens&quot;;
 export default function AgentCasePage({ params }: { params: Promise&lt;{ caseId: string }&gt; }) {
   const { caseId } = use(params);
   const router = useRouter();
-  const { household, opportunities, cases, hydrated, isLive, getOrCreateCase, answerTenure } = useGreenlight();
+  const { household, opportunities, cases, lastTenureDelta, presentationMode, hydrated, isLive, getOrCreateCase, answerTenure } = useGreenlight();
   const { play } = useGreenlightAudio();
   const shouldReduceMotion = useReducedMotion();
   const [copied, setCopied] = useState(false);
+  const [questionVisible, setQuestionVisible] = useState(false);
+  const [approved, setApproved] = useState(false);
   const playedAttention = useRef(false);
   const playedComplete = useRef(false);
 
@@ -817,19 +821,22 @@ export default function AgentCasePage({ params }: { params: Promise&lt;{ caseId:
   const needsHuman = agentCase?.status === &quot;awaiting_human&quot;;
 
   useEffect(() =&gt; {
+    if (!needsHuman) return;
+    const timer = window.setTimeout(() =&gt; setQuestionVisible(true), shouldReduceMotion ? 80 : 960);
+    return () =&gt; window.clearTimeout(timer);
+  }, [needsHuman, shouldReduceMotion]);
+
+  useEffect(() =&gt; {
     if (!needsHuman || playedAttention.current) return;
     playedAttention.current = true;
     play(&quot;attention&quot;);
   }, [needsHuman, play]);
 
   useEffect(() =&gt; {
-    if (!agentCase || needsHuman || playedComplete.current) return;
-    const timer = window.setTimeout(() =&gt; {
-      playedComplete.current = true;
-      play(&quot;complete&quot;);
-    }, shouldReduceMotion ? 0 : 900);
-    return () =&gt; window.clearTimeout(timer);
-  }, [agentCase, needsHuman, play, shouldReduceMotion]);
+    if (!approved || playedComplete.current) return;
+    playedComplete.current = true;
+    play(&quot;complete&quot;);
+  }, [approved, play]);
 
   if (!household || !opportunity || !agentCase) return null;
 
@@ -840,12 +847,12 @@ export default function AgentCasePage({ params }: { params: Promise&lt;{ caseId:
           &lt;p className=&quot;text-[13px] text-ink-muted&quot;&gt;Turning eligibility into action&lt;/p&gt;
           &lt;DemoModeBadge live={isLive} /&gt;
         &lt;/div&gt;
-        &lt;h1 className=&quot;text-2xl font-medium mb-6&quot;&gt;Do not let the paperwork cost you this opportunity&lt;/h1&gt;
+        &lt;h1 className=&quot;text-2xl font-medium mb-6&quot;&gt;Greenlight is handling it.&lt;/h1&gt;
 
         &lt;div className=&quot;grid lg:grid-cols-[1fr_320px] gap-6&quot;&gt;
           &lt;div className=&quot;order-2 lg:order-1&quot;&gt;
             &lt;motion.div
-              animate={{ opacity: needsHuman ? 0.68 : 1 }}
+              animate={{ opacity: needsHuman &amp;&amp; questionVisible ? 0.48 : 1 }}
               transition={{ duration: shouldReduceMotion ? 0 : motionTokens.duration.slow, ease: motionTokens.easeOut }}
             &gt;
               &lt;AgentTimeline events={agentCase.events} /&gt;
@@ -853,7 +860,7 @@ export default function AgentCasePage({ params }: { params: Promise&lt;{ caseId:
           &lt;/div&gt;
 
           &lt;div className=&quot;order-1 lg:order-2 flex flex-col gap-4&quot;&gt;
-            {needsHuman &amp;&amp; (
+            {needsHuman &amp;&amp; questionVisible &amp;&amp; (
               &lt;CinematicReveal&gt;
                 &lt;div className=&quot;rounded-lg border border-warning bg-warning-soft p-4 shadow-[0_14px_34px_rgba(156,107,11,0.10)]&quot;&gt;
                   &lt;p className=&quot;text-[13px] font-medium mb-3&quot;&gt;Do you own or rent this property?&lt;/p&gt;
@@ -877,6 +884,7 @@ export default function AgentCasePage({ params }: { params: Promise&lt;{ caseId:
 
             {!needsHuman &amp;&amp; (
               &lt;&gt;
+                {lastTenureDelta &amp;&amp; &lt;EligibilityDelta delta={lastTenureDelta} /&gt;}
                 &lt;AdministratorChain route={agentCase.actionRoute!} /&gt;
                 &lt;ApplicationPacket fields={agentCase.applicationFields} /&gt;
 
@@ -901,7 +909,7 @@ export default function AgentCasePage({ params }: { params: Promise&lt;{ caseId:
                         &gt;
                           {copied ? &quot;Copied&quot; : &quot;Copy&quot;}
                         &lt;/TactileButton&gt;
-                        &lt;TactileButton className=&quot;flex-1 rounded-lg bg-ink text-white text-[13px] font-medium py-2 hover:bg-ink/90&quot;&gt;
+                        &lt;TactileButton onClick={() =&gt; setApproved(true)} className=&quot;flex-1 rounded-lg bg-ink text-white text-[13px] font-medium py-2 hover:bg-ink/90&quot;&gt;
                           Approve
                         &lt;/TactileButton&gt;
                       &lt;/div&gt;
@@ -914,17 +922,18 @@ export default function AgentCasePage({ params }: { params: Promise&lt;{ caseId:
                       &lt;p className=&quot;text-[13px] text-ink-soft mb-3&quot;&gt;
                         This program doesn&amp;apos;t require an email. Applications are submitted through the official program portal.
                       &lt;/p&gt;
-                      &lt;a
-                        href={agentCase.actionRoute?.applicationUrl}
-                        target=&quot;_blank&quot;
-                        rel=&quot;noopener noreferrer&quot;
-                        className=&quot;block text-center rounded-lg bg-ink text-white text-[13px] font-medium py-2 hover:bg-ink/90&quot;
-                      &gt;
-                        Continue application
-                      &lt;/a&gt;
+                      &lt;div className=&quot;flex flex-col gap-2&quot;&gt;
+                        &lt;TactileButton onClick={() =&gt; setApproved(true)} className=&quot;w-full rounded-lg bg-ink py-2 text-[13px] font-medium text-white hover:bg-ink/90&quot;&gt;
+                          Review prepared application
+                        &lt;/TactileButton&gt;
+                        &lt;a href={agentCase.actionRoute?.applicationUrl} target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot; onClick={(event) =&gt; { if (presentationMode) { event.preventDefault(); setApproved(true); } }} className=&quot;block rounded-lg border border-line-strong py-2 text-center text-[12px] font-medium hover:bg-canvas&quot;&gt;
+                          Open official portal
+                        &lt;/a&gt;
+                      &lt;/div&gt;
                     &lt;/div&gt;
                   &lt;/CinematicReveal&gt;
                 )}
+                {approved &amp;&amp; &lt;DemoResolution opportunity={opportunity} agentCase={agentCase} /&gt;}
               &lt;/&gt;
             )}
           &lt;/div&gt;
@@ -1064,12 +1073,14 @@ body {
 </code></pre>
     </details>
 <details class="source" data-search="uxui/app/layout.tsx" >
-      <summary><span>uxui/app/layout.tsx</span><small>26 lines</small></summary>
+      <summary><span>uxui/app/layout.tsx</span><small>29 lines</small></summary>
       <pre><code>import type { Metadata } from &quot;next&quot;;
+import { Suspense } from &quot;react&quot;;
 import &quot;./globals.css&quot;;
 import { GreenlightProvider } from &quot;@/lib/context/greenlight-context&quot;;
 import { SiteHeader } from &quot;@/components/SiteHeader&quot;;
 import { AudioBootstrap } from &quot;@/components/AudioBootstrap&quot;;
+import { PresentationControls } from &quot;@/components/PresentationControls&quot;;
 
 export const metadata: Metadata = {
   title: &quot;Greenlight | Make the greener move the obvious move&quot;,
@@ -1083,6 +1094,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       &lt;body className=&quot;min-h-full flex flex-col bg-canvas text-ink&quot;&gt;
         &lt;GreenlightProvider&gt;
           &lt;AudioBootstrap /&gt;
+          &lt;Suspense fallback={null}&gt;&lt;PresentationControls /&gt;&lt;/Suspense&gt;
           &lt;SiteHeader /&gt;
           &lt;main className=&quot;flex-1 flex flex-col&quot;&gt;{children}&lt;/main&gt;
         &lt;/GreenlightProvider&gt;
@@ -1093,7 +1105,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 </code></pre>
     </details>
 <details class="source" data-search="uxui/app/opportunities/page.tsx" >
-      <summary><span>uxui/app/opportunities/page.tsx</span><small>95 lines</small></summary>
+      <summary><span>uxui/app/opportunities/page.tsx</span><small>87 lines</small></summary>
       <pre><code>&quot;use client&quot;;
 
 import { useEffect } from &quot;react&quot;;
@@ -1101,12 +1113,12 @@ import { useRouter } from &quot;next/navigation&quot;;
 import { useGreenlight } from &quot;@/lib/context/greenlight-context&quot;;
 import { ValueFoundHero } from &quot;@/components/ValueFoundHero&quot;;
 import { OpportunityRow } from &quot;@/components/OpportunityRow&quot;;
-import { Metric } from &quot;@/components/Metric&quot;;
 import { DemoModeBadge } from &quot;@/components/DemoModeBadge&quot;;
+import { objectiveLabel } from &quot;@/lib/experience&quot;;
 
 export default function OpportunitiesPage() {
   const router = useRouter();
-  const { bills, household, opportunities, hydrated, isLive } = useGreenlight();
+  const { bills, household, opportunities, objective, hydrated, isLive } = useGreenlight();
 
   useEffect(() =&gt; {
     if (hydrated &amp;&amp; (bills.length === 0 || !household)) router.replace(&quot;/&quot;);
@@ -1114,33 +1126,25 @@ export default function OpportunitiesPage() {
 
   if (bills.length === 0 || !household) return null;
 
-  const pursuable = opportunities.filter((o) =&gt; o.status !== &quot;not_eligible&quot;);
-  const total = pursuable.reduce((sum, o) =&gt; sum + o.estimatedIncentive, 0);
-
   return (
     &lt;div className=&quot;flex-1 px-4 sm:px-6 py-10&quot;&gt;
       &lt;div className=&quot;mx-auto max-w-5xl&quot;&gt;
         &lt;div className=&quot;flex items-center justify-between mb-6&quot;&gt;
-          &lt;h1 className=&quot;text-xl font-medium&quot;&gt;Money your home may be missing&lt;/h1&gt;
+          &lt;div&gt;&lt;h1 className=&quot;text-2xl font-semibold tracking-[-0.035em]&quot;&gt;Money your home may be missing&lt;/h1&gt;&lt;p className=&quot;mt-1 text-[12px] text-ink-muted&quot;&gt;Ranked for: {objectiveLabel(objective)}&lt;/p&gt;&lt;/div&gt;
           &lt;DemoModeBadge live={isLive} /&gt;
         &lt;/div&gt;
 
         &lt;div className=&quot;grid lg:grid-cols-[1fr_320px] gap-6&quot;&gt;
           &lt;div className=&quot;flex flex-col gap-6 order-2 lg:order-1&quot;&gt;
-            &lt;div className=&quot;lg:hidden&quot;&gt;
-              &lt;ValueFoundHero total={total} opportunityCount={pursuable.length} /&gt;
-            &lt;/div&gt;
             &lt;div className=&quot;flex flex-col gap-3&quot;&gt;
-              {opportunities.map((o) =&gt; (
-                &lt;OpportunityRow key={o.id} opportunity={o} /&gt;
+              {opportunities.map((o, index) =&gt; (
+                &lt;OpportunityRow key={o.id} opportunity={o} recommended={index === 0 &amp;&amp; o.status !== &quot;not_eligible&quot;} /&gt;
               ))}
             &lt;/div&gt;
           &lt;/div&gt;
 
           &lt;div className=&quot;flex flex-col gap-4 order-1 lg:order-2&quot;&gt;
-            &lt;div className=&quot;hidden lg:block&quot;&gt;
-              &lt;ValueFoundHero total={total} opportunityCount={pursuable.length} /&gt;
-            &lt;/div&gt;
+            &lt;ValueFoundHero opportunities={opportunities} /&gt;
             &lt;div className=&quot;rounded-lg border border-line bg-card p-4&quot;&gt;
               &lt;p className=&quot;text-[13px] font-medium mb-3&quot;&gt;Household&lt;/p&gt;
               &lt;dl className=&quot;flex flex-col gap-2 text-[13px]&quot;&gt;
@@ -1181,7 +1185,7 @@ export default function OpportunitiesPage() {
                 &lt;/p&gt;
               )}
             &lt;/div&gt;
-            &lt;Metric label=&quot;Programs tracked&quot; value={String(opportunities.length)} /&gt;
+            &lt;div className=&quot;rounded-xl border border-line bg-brand-soft/55 p-4&quot;&gt;&lt;p className=&quot;text-[12px] font-semibold text-brand&quot;&gt;The trust boundary&lt;/p&gt;&lt;p className=&quot;mt-1 text-[12px] leading-relaxed text-ink-soft&quot;&gt;AI interprets the bill and program language. Deterministic TypeScript owns eligibility checks, ranking, and every dollar shown.&lt;/p&gt;&lt;/div&gt;
           &lt;/div&gt;
         &lt;/div&gt;
       &lt;/div&gt;
@@ -1191,7 +1195,7 @@ export default function OpportunitiesPage() {
 </code></pre>
     </details>
 <details class="source" data-search="uxui/app/opportunity/[id]/page.tsx" >
-      <summary><span>uxui/app/opportunity/[id]/page.tsx</span><small>74 lines</small></summary>
+      <summary><span>uxui/app/opportunity/[id]/page.tsx</span><small>75 lines</small></summary>
       <pre><code>&quot;use client&quot;;
 
 import { useEffect, use } from &quot;react&quot;;
@@ -1221,7 +1225,8 @@ export default function OpportunityDetailPage({ params }: { params: Promise&lt;{
     &lt;div className=&quot;flex-1 px-4 sm:px-6 py-10&quot;&gt;
       &lt;div className=&quot;mx-auto max-w-4xl&quot;&gt;
         &lt;p className=&quot;text-[13px] text-ink-muted mb-1&quot;&gt;{program.provider}&lt;/p&gt;
-        &lt;h1 className=&quot;text-2xl font-medium mb-1&quot;&gt;{opportunity.title}&lt;/h1&gt;
+        &lt;h1 className=&quot;max-w-2xl text-3xl font-semibold tracking-[-0.045em]&quot;&gt;Here&amp;apos;s why your home could unlock ${opportunity.estimatedIncentive.toLocaleString(&quot;en-CA&quot;)}.&lt;/h1&gt;
+        &lt;p className=&quot;mb-2 mt-2 text-[14px] font-semibold text-brand&quot;&gt;{opportunity.title}&lt;/p&gt;
         &lt;p className=&quot;text-[14px] text-ink-soft mb-6 max-w-xl&quot;&gt;{program.description}&lt;/p&gt;
 
         &lt;div className=&quot;grid lg:grid-cols-[1fr_280px] gap-6&quot;&gt;
@@ -1246,9 +1251,9 @@ export default function OpportunityDetailPage({ params }: { params: Promise&lt;{
             &lt;SourceBadge url={program.officialUrl} label={program.actionRoute.sourceTitle ?? &quot;Official program page&quot;} verifiedAt={program.lastVerifiedAt} /&gt;
           &lt;/div&gt;
 
-          &lt;div className=&quot;order-1 lg:order-2 flex flex-col gap-3&quot;&gt;
-            &lt;div className=&quot;rounded-lg border border-line bg-card p-4&quot;&gt;
-              &lt;p className=&quot;text-[13px] text-ink-muted mb-1&quot;&gt;Next step&lt;/p&gt;
+          &lt;div className=&quot;order-1 flex flex-col gap-3 lg:order-2&quot;&gt;
+            &lt;div className=&quot;sticky top-20 rounded-xl border border-brand/25 bg-card p-4 shadow-[0_16px_38px_rgba(31,92,63,0.10)]&quot;&gt;
+              &lt;p className=&quot;text-[13px] text-ink-muted mb-1&quot;&gt;Do not leave this trapped in paperwork&lt;/p&gt;
               &lt;p className=&quot;text-[14px] font-medium mb-3&quot;&gt;
                 {opportunity.status === &quot;needs_answers&quot; ? &quot;Needs 1 answer&quot; : &quot;Program application&quot;}
               &lt;/p&gt;
@@ -1256,7 +1261,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise&lt;{
                 onClick={() =&gt; router.push(`/agent/${opportunity.id}`)}
                 className=&quot;w-full rounded-lg bg-ink text-white text-[14px] font-medium py-2.5 hover:bg-ink/90 transition-colors&quot;
               &gt;
-                Get it for me
+                Turn this into an application
               &lt;/TactileButton&gt;
             &lt;/div&gt;
           &lt;/div&gt;
@@ -1302,20 +1307,29 @@ export default function Home() {
 </code></pre>
     </details>
 <details class="source" data-search="uxui/app/plan/page.tsx" >
-      <summary><span>uxui/app/plan/page.tsx</span><small>77 lines</small></summary>
+      <summary><span>uxui/app/plan/page.tsx</span><small>94 lines</small></summary>
       <pre><code>&quot;use client&quot;;
 
 import { useEffect, useState } from &quot;react&quot;;
 import { useRouter } from &quot;next/navigation&quot;;
+import { RotateCcw, SlidersHorizontal } from &quot;lucide-react&quot;;
 import { useGreenlight } from &quot;@/lib/context/greenlight-context&quot;;
 import { parseGoalPrompt, buildNegotiatedPlan } from &quot;@/lib/calculations/constraint-solver&quot;;
+import { applyTenureScenario, objectiveLabel, rankOpportunities, scenarioDescription } from &quot;@/lib/experience&quot;;
 import { NegotiatedPlanView } from &quot;@/components/NegotiatedPlanView&quot;;
+import { OptimizationObjective, ScenarioOverride } from &quot;@/lib/types&quot;;
 
 const CHIPS = [&quot;Save me money&quot;, &quot;Find every rebate&quot;, &quot;Lowest upfront cost&quot;, &quot;Reduce energy use&quot;];
+const SCENARIOS: Array&lt;{ label: string; value: ScenarioOverride }&gt; = [
+  { label: &quot;What if I rent?&quot;, value: { tenure: &quot;renter&quot; } },
+  { label: &quot;Only $300 upfront&quot;, value: { maxUpfrontCost: 300 } },
+  { label: &quot;Lowest upfront&quot;, value: { objective: &quot;min_upfront&quot; } },
+  { label: &quot;Maximum long-term savings&quot;, value: { objective: &quot;long_term_savings&quot; } },
+];
 
 export default function PlanPage() {
   const router = useRouter();
-  const { household, opportunities, goal, setGoal, hydrated } = useGreenlight();
+  const { household, opportunities, goal, objective, scenario, setGoal, setObjective, setScenario, clearScenario, hydrated } = useGreenlight();
   const [input, setInput] = useState(goal?.rawPrompt ?? &quot;&quot;);
 
   useEffect(() =&gt; {
@@ -1325,56 +1339,64 @@ export default function PlanPage() {
   if (!household) return null;
 
   const submit = (raw: string) =&gt; {
+    const parsed = parseGoalPrompt(raw);
     setInput(raw);
-    setGoal(parseGoalPrompt(raw));
+    setGoal(parsed);
+    setObjective(parsed.objective);
+    clearScenario();
   };
 
-  const plan = buildNegotiatedPlan(opportunities, goal);
+  const scenarioObjective: OptimizationObjective = scenario.objective ?? goal?.objective ?? objective ?? &quot;max_value&quot;;
+  const tenureAdjusted = scenario.tenure ? applyTenureScenario(opportunities, scenario.tenure) : opportunities;
+  const scenarioOpportunities = rankOpportunities(tenureAdjusted, scenarioObjective);
+  const scenarioGoal = {
+    ...(goal ?? parseGoalPrompt(&quot;Find the most money&quot;)),
+    objective: scenarioObjective,
+    maxUpfrontCost: scenario.maxUpfrontCost ?? goal?.maxUpfrontCost ?? null,
+  };
+  const plan = buildNegotiatedPlan(scenarioOpportunities, scenarioGoal);
+  const baseline = buildNegotiatedPlan(opportunities, goal);
+  const valueDelta = plan.potentialFirstYearValue - baseline.potentialFirstYearValue;
+  const readyCount = scenarioOpportunities.filter((item) =&gt; item.status === &quot;ready_to_pursue&quot;).length;
 
   return (
-    &lt;div className=&quot;flex-1 px-4 sm:px-6 py-10&quot;&gt;
-      &lt;div className=&quot;mx-auto max-w-2xl&quot;&gt;
-        &lt;h1 className=&quot;text-2xl font-medium mb-1&quot;&gt;Tell us what winning looks like&lt;/h1&gt;
-        &lt;p className=&quot;text-[14px] text-ink-soft mb-6&quot;&gt;
-          Choose what matters most. Greenlight will shape the strongest realistic path from the programs it uncovered.
+    &lt;div className=&quot;flex-1 px-4 py-10 sm:px-6&quot;&gt;
+      &lt;div className=&quot;mx-auto max-w-4xl&quot;&gt;
+        &lt;h1 className=&quot;text-3xl font-semibold tracking-[-0.045em]&quot;&gt;Make the programs negotiate with your reality.&lt;/h1&gt;
+        &lt;p className=&quot;mb-6 mt-2 max-w-2xl text-[14px] leading-relaxed text-ink-soft&quot;&gt;
+          Set a constraint or test a different household fact. Greenlight recalculates a separate scenario while preserving the verified record.
         &lt;/p&gt;
 
-        &lt;div className=&quot;flex flex-wrap gap-2 mb-4&quot;&gt;
-          {CHIPS.map((chip) =&gt; (
-            &lt;button
-              key={chip}
-              onClick={() =&gt; submit(chip)}
-              className=&quot;text-[13px] rounded-full border border-line px-3 py-1.5 hover:border-line-strong hover:bg-card&quot;
-            &gt;
-              {chip}
-            &lt;/button&gt;
-          ))}
+        &lt;div className=&quot;mb-4 flex flex-wrap gap-2&quot;&gt;
+          {CHIPS.map((chip) =&gt; &lt;button key={chip} onClick={() =&gt; submit(chip)} className=&quot;rounded-full border border-line px-3 py-1.5 text-[13px] hover:border-line-strong hover:bg-card&quot;&gt;{chip}&lt;/button&gt;)}
         &lt;/div&gt;
 
-        &lt;form
-          onSubmit={(e) =&gt; {
-            e.preventDefault();
-            submit(input);
-          }}
-          className=&quot;flex gap-2 mb-8&quot;
-        &gt;
-          &lt;input
-            value={input}
-            onChange={(e) =&gt; setInput(e.target.value)}
-            placeholder=&quot;Save me $1,000 this year without spending more than $500 upfront.&quot;
-            className=&quot;flex-1 rounded-lg border border-line px-3 py-2.5 text-[14px] bg-card focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand&quot;
-          /&gt;
-          &lt;button type=&quot;submit&quot; className=&quot;rounded-lg bg-ink text-white text-[14px] font-medium px-4 py-2.5 hover:bg-ink/90&quot;&gt;
-            Build my plan
-          &lt;/button&gt;
+        &lt;form onSubmit={(event) =&gt; { event.preventDefault(); submit(input); }} className=&quot;mb-8 flex flex-col gap-2 sm:flex-row&quot;&gt;
+          &lt;input value={input} onChange={(event) =&gt; setInput(event.target.value)} placeholder=&quot;Save me $1,000 this year without spending more than $500 upfront.&quot; className=&quot;min-w-0 flex-1 rounded-lg border border-line bg-card px-3 py-2.5 text-[14px] focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30&quot; /&gt;
+          &lt;button type=&quot;submit&quot; className=&quot;rounded-lg bg-ink px-4 py-2.5 text-[14px] font-medium text-white hover:bg-ink/90&quot;&gt;Negotiate my plan&lt;/button&gt;
         &lt;/form&gt;
 
-        {goal &amp;&amp; (
-          &lt;div&gt;
-            &lt;p className=&quot;text-[13px] font-medium mb-3&quot;&gt;Your negotiated plan&lt;/p&gt;
-            &lt;NegotiatedPlanView plan={plan} /&gt;
+        &lt;section className=&quot;mb-6 rounded-2xl border border-brand/20 bg-brand-soft/45 p-4 sm:p-5&quot;&gt;
+          &lt;div className=&quot;flex items-center justify-between gap-3&quot;&gt;
+            &lt;div&gt;&lt;p className=&quot;flex items-center gap-2 text-[13px] font-semibold&quot;&gt;&lt;SlidersHorizontal size={15} aria-hidden=&quot;true&quot; /&gt;What-if sandbox&lt;/p&gt;&lt;p className=&quot;mt-1 text-[12px] text-ink-muted&quot;&gt;These controls never overwrite your household evidence.&lt;/p&gt;&lt;/div&gt;
+            {Object.keys(scenario).length &gt; 0 &amp;&amp; &lt;button type=&quot;button&quot; onClick={clearScenario} className=&quot;flex items-center gap-1.5 rounded-lg border border-line bg-card px-3 py-2 text-[12px] font-medium&quot;&gt;&lt;RotateCcw size={13} aria-hidden=&quot;true&quot; /&gt;Reset&lt;/button&gt;}
           &lt;/div&gt;
-        )}
+          &lt;div className=&quot;mt-4 grid gap-2 sm:grid-cols-2&quot;&gt;
+            {SCENARIOS.map((preset) =&gt; {
+              const active = JSON.stringify(scenario) === JSON.stringify(preset.value);
+              return &lt;button key={preset.label} type=&quot;button&quot; aria-pressed={active} onClick={() =&gt; setScenario(preset.value)} className={`rounded-xl border px-3 py-3 text-left text-[13px] font-medium transition-colors ${active ? &quot;border-brand bg-brand text-white&quot; : &quot;border-line bg-card hover:border-brand/40&quot;}`}&gt;{preset.label}&lt;/button&gt;;
+            })}
+          &lt;/div&gt;
+          &lt;div className=&quot;mt-4 grid gap-3 sm:grid-cols-3&quot;&gt;
+            &lt;div className=&quot;rounded-xl bg-card p-3&quot;&gt;&lt;p className=&quot;text-[11px] text-ink-muted&quot;&gt;Scenario&lt;/p&gt;&lt;p className=&quot;mt-1 text-[13px] font-semibold&quot;&gt;{scenarioDescription(scenario)}&lt;/p&gt;&lt;/div&gt;
+            &lt;div className=&quot;rounded-xl bg-card p-3&quot;&gt;&lt;p className=&quot;text-[11px] text-ink-muted&quot;&gt;Ready to pursue&lt;/p&gt;&lt;p className=&quot;mt-1 text-[13px] font-semibold tabular-nums&quot;&gt;{readyCount} program{readyCount === 1 ? &quot;&quot; : &quot;s&quot;}&lt;/p&gt;&lt;/div&gt;
+            &lt;div className=&quot;rounded-xl bg-card p-3&quot;&gt;&lt;p className=&quot;text-[11px] text-ink-muted&quot;&gt;First-year value change&lt;/p&gt;&lt;p className={`mt-1 text-[13px] font-semibold tabular-nums ${valueDelta &lt; 0 ? &quot;text-danger&quot; : &quot;text-success&quot;}`}&gt;{valueDelta === 0 ? &quot;No change&quot; : `${valueDelta &gt; 0 ? &quot;+&quot; : &quot;−&quot;}$${Math.abs(valueDelta).toLocaleString(&quot;en-CA&quot;)}`}&lt;/p&gt;&lt;/div&gt;
+          &lt;/div&gt;
+          &lt;p className=&quot;mt-3 text-[12px] leading-relaxed text-ink-soft&quot;&gt;Ranking now prioritizes &lt;strong&gt;{objectiveLabel(scenarioObjective).toLowerCase()}&lt;/strong&gt;{scenario.tenure ? `. Tenure evidence is temporarily evaluated as ${scenario.tenure}.` : &quot;.&quot;}&lt;/p&gt;
+        &lt;/section&gt;
+
+        &lt;p className=&quot;mb-3 text-[13px] font-medium&quot;&gt;Your negotiated plan&lt;/p&gt;
+        &lt;NegotiatedPlanView plan={plan} /&gt;
       &lt;/div&gt;
     &lt;/div&gt;
   );
@@ -1382,7 +1404,7 @@ export default function PlanPage() {
 </code></pre>
     </details>
 <details class="source" data-search="uxui/components/administratorchain.tsx" >
-      <summary><span>uxui/components/AdministratorChain.tsx</span><small>72 lines</small></summary>
+      <summary><span>uxui/components/AdministratorChain.tsx</span><small>73 lines</small></summary>
       <pre><code>&quot;use client&quot;;
 
 import { useEffect, useRef } from &quot;react&quot;;
@@ -1414,6 +1436,7 @@ export function AdministratorChain({ route }: { route: ActionRoute }) {
 
   return (
     &lt;div className=&quot;rounded-lg border border-line bg-card p-4&quot;&gt;
+      &lt;p className=&quot;mb-4 text-[13px] font-semibold&quot;&gt;Let&amp;apos;s find who actually owns this.&lt;/p&gt;
       &lt;ul className=&quot;flex flex-col&quot;&gt;
         {steps.map((step, index) =&gt; {
           const isVerified = &quot;verified&quot; in step &amp;&amp; step.verified;
@@ -1445,7 +1468,7 @@ export function AdministratorChain({ route }: { route: ActionRoute }) {
                 }`}
                 aria-hidden=&quot;true&quot;
               /&gt;
-              &lt;p className=&quot;text-[11px] text-ink-muted uppercase tracking-wide&quot;&gt;{step.label}&lt;/p&gt;
+              &lt;p className=&quot;text-[11px] font-medium text-ink-muted&quot;&gt;{step.label}&lt;/p&gt;
               &lt;p className=&quot;text-[14px] font-medium&quot;&gt;{step.value}&lt;/p&gt;
             &lt;/motion.li&gt;
           );
@@ -1457,19 +1480,19 @@ export function AdministratorChain({ route }: { route: ActionRoute }) {
 </code></pre>
     </details>
 <details class="source" data-search="uxui/components/agenttimeline.tsx" >
-      <summary><span>uxui/components/AgentTimeline.tsx</span><small>67 lines</small></summary>
+      <summary><span>uxui/components/AgentTimeline.tsx</span><small>76 lines</small></summary>
       <pre><code>&quot;use client&quot;;
 
 import { useEffect, useState } from &quot;react&quot;;
 import { AnimatePresence, motion, useReducedMotion } from &quot;framer-motion&quot;;
-import { CheckCircle2, CircleDashed, HelpCircle, XCircle } from &quot;lucide-react&quot;;
+import { CheckCircle2, ChevronDown, CircleDashed, HelpCircle, XCircle } from &quot;lucide-react&quot;;
 import { AgentEvent } from &quot;@/lib/types&quot;;
 import { useGreenlightAudio } from &quot;@/hooks/useGreenlightAudio&quot;;
 import { motionTokens } from &quot;@/lib/motion/tokens&quot;;
 
 function EventIcon({ status }: { status: AgentEvent[&quot;status&quot;] }) {
   if (status === &quot;complete&quot;) return &lt;CheckCircle2 size={16} className=&quot;text-success&quot; aria-hidden=&quot;true&quot; /&gt;;
-  if (status === &quot;in_progress&quot;) return &lt;CircleDashed size={16} className=&quot;text-ink-muted animate-spin&quot; aria-hidden=&quot;true&quot; /&gt;;
+  if (status === &quot;in_progress&quot;) return &lt;CircleDashed size={16} className=&quot;animate-spin text-ink-muted&quot; aria-hidden=&quot;true&quot; /&gt;;
   if (status === &quot;needs_human&quot;) return &lt;HelpCircle size={16} className=&quot;text-warning&quot; aria-hidden=&quot;true&quot; /&gt;;
   return &lt;XCircle size={16} className=&quot;text-danger&quot; aria-hidden=&quot;true&quot; /&gt;;
 }
@@ -1477,50 +1500,59 @@ function EventIcon({ status }: { status: AgentEvent[&quot;status&quot;] }) {
 export function AgentTimeline({ events }: { events: AgentEvent[] }) {
   const shouldReduceMotion = useReducedMotion();
   const { play } = useGreenlightAudio();
-  const [visibleCount, setVisibleCount] = useState(0);
-  const renderedCount = shouldReduceMotion ? events.length : visibleCount;
-  const visibleEvents = events.slice(0, renderedCount);
-  const groups = Array.from(new Set(visibleEvents.map((event) =&gt; event.group)));
+  const humanIndex = events.findIndex((event) =&gt; event.status === &quot;needs_human&quot;);
+  const executableEvents = humanIndex &gt;= 0 ? events.slice(0, humanIndex + 1) : events;
+  const [visibleCount, setVisibleCount] = useState(shouldReduceMotion ? executableEvents.length : 0);
+  const [expanded, setExpanded] = useState&lt;string | null&gt;(null);
+  const visibleEvents = executableEvents.slice(0, shouldReduceMotion ? executableEvents.length : visibleCount);
 
   useEffect(() =&gt; {
-    if (shouldReduceMotion || visibleCount &gt;= events.length) return;
+    if (shouldReduceMotion || visibleCount &gt;= executableEvents.length) return;
     const timer = window.setTimeout(() =&gt; {
       const nextIndex = visibleCount;
-      play(&quot;step&quot;, { gainScale: Math.max(0.42, 0.92 - nextIndex * 0.055) });
-      setVisibleCount((count) =&gt; Math.min(count + 1, events.length));
-    }, visibleCount === 0 ? 120 : 105);
+      if (nextIndex === 0 || nextIndex === executableEvents.length - 1) play(&quot;step&quot;, { gainScale: 0.52 });
+      setVisibleCount((count) =&gt; Math.min(count + 1, executableEvents.length));
+    }, visibleCount === 0 ? 140 : 210);
     return () =&gt; window.clearTimeout(timer);
-  }, [events.length, play, shouldReduceMotion, visibleCount]);
+  }, [executableEvents.length, play, shouldReduceMotion, visibleCount]);
 
   return (
-    &lt;div className=&quot;flex flex-col gap-5&quot; aria-label=&quot;Agent progress&quot;&gt;
-      &lt;AnimatePresence initial={false}&gt;
-        {groups.map((group) =&gt; (
-          &lt;motion.div
-            key={group}
-            initial={shouldReduceMotion ? false : { opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: motionTokens.duration.fast }}
-          &gt;
-            &lt;p className=&quot;text-[12px] font-medium text-ink-muted uppercase tracking-wide mb-2&quot;&gt;{group}&lt;/p&gt;
-            &lt;ul className=&quot;flex flex-col gap-2&quot;&gt;
-              {visibleEvents.filter((event) =&gt; event.group === group).map((event) =&gt; (
-                &lt;motion.li
-                  key={event.id}
-                  initial={shouldReduceMotion ? false : { opacity: 0, x: -8, filter: &quot;blur(2px)&quot; }}
-                  animate={{ opacity: 1, x: 0, filter: &quot;blur(0px)&quot; }}
-                  transition={{ duration: motionTokens.duration.fast, ease: motionTokens.easeOut }}
-                  className=&quot;flex items-center gap-2.5 text-[14px]&quot;
+    &lt;div aria-label=&quot;Observable Greenlight actions&quot;&gt;
+      &lt;p className=&quot;mb-3 text-[12px] font-medium text-ink-muted&quot;&gt;Observable actions. Select any completed event to inspect the result.&lt;/p&gt;
+      &lt;ol className=&quot;relative flex flex-col gap-2 before:absolute before:bottom-4 before:left-[19px] before:top-4 before:w-px before:bg-line&quot;&gt;
+        &lt;AnimatePresence initial={false}&gt;
+          {visibleEvents.map((event) =&gt; {
+            const isExpanded = expanded === event.id;
+            return (
+              &lt;motion.li
+                key={event.id}
+                initial={shouldReduceMotion ? false : { opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: motionTokens.duration.fast, ease: motionTokens.easeOut }}
+                className=&quot;relative rounded-xl border border-line bg-card&quot;
+              &gt;
+                &lt;button
+                  type=&quot;button&quot;
+                  onClick={() =&gt; event.detail &amp;&amp; setExpanded(isExpanded ? null : event.id)}
+                  className=&quot;flex w-full items-center gap-3 p-3 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand&quot;
+                  aria-expanded={event.detail ? isExpanded : undefined}
                 &gt;
-                  &lt;EventIcon status={event.status} /&gt;
-                  &lt;span className={event.status === &quot;blocked&quot; ? &quot;text-ink-muted&quot; : &quot;text-ink&quot;}&gt;{event.title}&lt;/span&gt;
-                  {event.detail &amp;&amp; &lt;span className=&quot;text-[12px] text-warning&quot;&gt;{event.detail}&lt;/span&gt;}
-                &lt;/motion.li&gt;
-              ))}
-            &lt;/ul&gt;
-          &lt;/motion.div&gt;
-        ))}
-      &lt;/AnimatePresence&gt;
+                  &lt;span className=&quot;relative z-[1] flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-card&quot;&gt;&lt;EventIcon status={event.status} /&gt;&lt;/span&gt;
+                  &lt;span className=&quot;min-w-0 flex-1&quot;&gt;&lt;span className=&quot;block text-[10px] font-medium text-ink-muted&quot;&gt;{event.group}&lt;/span&gt;&lt;span className=&quot;block text-[13px] font-semibold&quot;&gt;{event.title}&lt;/span&gt;&lt;/span&gt;
+                  {event.detail &amp;&amp; &lt;ChevronDown size={15} className={`text-ink-muted transition-transform ${isExpanded ? &quot;rotate-180&quot; : &quot;&quot;}`} aria-hidden=&quot;true&quot; /&gt;}
+                &lt;/button&gt;
+                &lt;AnimatePresence initial={false}&gt;
+                  {isExpanded &amp;&amp; event.detail &amp;&amp; (
+                    &lt;motion.p initial={shouldReduceMotion ? false : { opacity: 0, height: 0 }} animate={{ opacity: 1, height: &quot;auto&quot; }} exit={{ opacity: 0, height: 0 }} className=&quot;overflow-hidden border-t border-line px-4 py-3 text-[12px] leading-relaxed text-ink-soft&quot;&gt;
+                      {event.detail}
+                    &lt;/motion.p&gt;
+                  )}
+                &lt;/AnimatePresence&gt;
+              &lt;/motion.li&gt;
+            );
+          })}
+        &lt;/AnimatePresence&gt;
+      &lt;/ol&gt;
     &lt;/div&gt;
   );
 }
@@ -1585,85 +1617,115 @@ export function AmbientBackground() {
 </code></pre>
     </details>
 <details class="source" data-search="uxui/components/analysissequence.tsx" >
-      <summary><span>uxui/components/AnalysisSequence.tsx</span><small>83 lines</small></summary>
+      <summary><span>uxui/components/AnalysisSequence.tsx</span><small>113 lines</small></summary>
       <pre><code>&quot;use client&quot;;
 
 import { useEffect, useState } from &quot;react&quot;;
 import { useRouter } from &quot;next/navigation&quot;;
-import { motion, AnimatePresence, useReducedMotion } from &quot;framer-motion&quot;;
-import { CheckCircle2 } from &quot;lucide-react&quot;;
+import { AnimatePresence, motion, useReducedMotion } from &quot;framer-motion&quot;;
 import { useGreenlight } from &quot;@/lib/context/greenlight-context&quot;;
 import { useGreenlightAudio } from &quot;@/hooks/useGreenlightAudio&quot;;
+import { objectiveLabel, deriveProgramFilterSummary } from &quot;@/lib/experience&quot;;
+import { DocumentIntelligence } from &quot;@/components/DocumentIntelligence&quot;;
+import { ProgramFilterSequence } from &quot;@/components/ProgramFilterSequence&quot;;
 import { motionTokens } from &quot;@/lib/motion/tokens&quot;;
 
-const STEPS = [
-  &quot;Reading the story inside your bill&quot;,
-  &quot;Home located: Toronto, Ontario&quot;,
-  &quot;Utility account found: Enbridge Gas&quot;,
-  &quot;Reconstructing how your home uses energy&quot;,
-  &quot;Spotting where money may be slipping away&quot;,
-  &quot;Building your household profile&quot;,
-  &quot;Searching every verified program&quot;,
-  &quot;Finding the shortest path to claim them&quot;,
-];
+const FACT_COUNT = 6;
+const FILTER_ROW_COUNT = 4;
 
 export function AnalysisSequence() {
   const router = useRouter();
-  const { bills, household, hydrated } = useGreenlight();
+  const { bills, household, opportunities, objective, hydrated } = useGreenlight();
   const { play } = useGreenlightAudio();
   const shouldReduceMotion = useReducedMotion();
-  const [visibleCount, setVisibleCount] = useState(0);
-  const renderedCount = shouldReduceMotion ? STEPS.length : visibleCount;
+  const [scene, setScene] = useState&lt;&quot;document&quot; | &quot;filter&quot;&gt;(&quot;document&quot;);
+  const [visibleFacts, setVisibleFacts] = useState(shouldReduceMotion ? FACT_COUNT : 0);
+  const [visibleRows, setVisibleRows] = useState(shouldReduceMotion ? FILTER_ROW_COUNT : 0);
 
   useEffect(() =&gt; {
     if (!hydrated) return;
-    if (bills.length === 0 || !household) {
-      router.replace(&quot;/&quot;);
-      return;
-    }
-    if (shouldReduceMotion) return;
-    const interval = setInterval(() =&gt; {
-      setVisibleCount((c) =&gt; {
-        if (c &gt;= STEPS.length) {
-          clearInterval(interval);
-          return c;
-        }
-        return c + 1;
-      });
-    }, 280);
-    return () =&gt; clearInterval(interval);
-  }, [hydrated, bills, household, router, shouldReduceMotion]);
+    if (bills.length === 0 || !household) router.replace(&quot;/&quot;);
+  }, [bills.length, household, hydrated, router]);
 
   useEffect(() =&gt; {
-    if (visibleCount &gt; 0 &amp;&amp; !shouldReduceMotion) play(&quot;step&quot;, { gainScale: Math.max(0.55, 1 - visibleCount * 0.05) });
-  }, [visibleCount, shouldReduceMotion, play]);
+    if (scene !== &quot;document&quot;) return;
+    if (shouldReduceMotion) {
+      const timer = window.setTimeout(() =&gt; setScene(&quot;filter&quot;), 600);
+      return () =&gt; window.clearTimeout(timer);
+    }
+    if (visibleFacts &lt; FACT_COUNT) {
+      const timer = window.setTimeout(() =&gt; {
+        if (visibleFacts === 0 || visibleFacts === 3) play(&quot;step&quot;, { gainScale: 0.55 });
+        setVisibleFacts((count) =&gt; count + 1);
+      }, visibleFacts === 0 ? 180 : 210);
+      return () =&gt; window.clearTimeout(timer);
+    }
+    const timer = window.setTimeout(() =&gt; setScene(&quot;filter&quot;), 650);
+    return () =&gt; window.clearTimeout(timer);
+  }, [play, scene, shouldReduceMotion, visibleFacts]);
 
   useEffect(() =&gt; {
-    if (renderedCount &gt;= STEPS.length) {
-      const t = setTimeout(() =&gt; router.push(&quot;/opportunities&quot;), shouldReduceMotion ? 0 : 500);
-      return () =&gt; clearTimeout(t);
+    if (scene !== &quot;filter&quot;) return;
+    if (shouldReduceMotion) {
+      const timer = window.setTimeout(() =&gt; router.push(&quot;/opportunities&quot;), 700);
+      return () =&gt; window.clearTimeout(timer);
     }
-  }, [renderedCount, router, shouldReduceMotion]);
+    if (visibleRows &lt; FILTER_ROW_COUNT) {
+      const timer = window.setTimeout(() =&gt; {
+        if (visibleRows === 0 || visibleRows === 3) play(&quot;step&quot;, { gainScale: 0.5 });
+        setVisibleRows((count) =&gt; count + 1);
+      }, 230);
+      return () =&gt; window.clearTimeout(timer);
+    }
+    const timer = window.setTimeout(() =&gt; router.push(&quot;/opportunities&quot;), 800);
+    return () =&gt; window.clearTimeout(timer);
+  }, [play, router, scene, shouldReduceMotion, visibleRows]);
+
+  if (!household || bills.length === 0) return null;
+
+  const summary = deriveProgramFilterSummary(opportunities);
 
   return (
-    &lt;div className=&quot;flex-1 flex flex-col items-center justify-center px-4 py-20&quot;&gt;
-      &lt;div className=&quot;w-full max-w-md&quot;&gt;
-        &lt;ul className=&quot;flex flex-col gap-3&quot;&gt;
-          &lt;AnimatePresence&gt;
-            {STEPS.slice(0, renderedCount).map((step, i) =&gt; (
-              &lt;motion.li
-                key={step}
-                initial={shouldReduceMotion ? false : { opacity: 0, y: 10, filter: &quot;blur(3px)&quot; }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: motionTokens.duration.fast, ease: motionTokens.easeOut }}
-                className=&quot;flex items-center gap-3 text-[14px]&quot;
-              &gt;
-                &lt;CheckCircle2 size={16} className=&quot;text-success shrink-0&quot; aria-hidden=&quot;true&quot; /&gt;
-                &lt;span className={i === renderedCount - 1 ? &quot;text-ink&quot; : &quot;text-ink-soft&quot;}&gt;{step}&lt;/span&gt;
-              &lt;/motion.li&gt;
-            ))}
-          &lt;/AnimatePresence&gt;
-        &lt;/ul&gt;
+    &lt;div className=&quot;flex-1 px-4 py-8 sm:px-6 sm:py-10&quot;&gt;
+      &lt;div className=&quot;mx-auto max-w-6xl&quot;&gt;
+        &lt;div className=&quot;mb-7 flex items-start justify-between gap-4&quot;&gt;
+          &lt;div&gt;
+            &lt;p className=&quot;text-[12px] font-medium text-brand&quot;&gt;Optimizing for: {objectiveLabel(objective)}&lt;/p&gt;
+            &lt;h1 className=&quot;mt-1 text-3xl font-semibold tracking-[-0.045em] sm:text-4xl&quot;&gt;
+              {scene === &quot;document&quot; ? &quot;Let's see what your bill knows.&quot; : &quot;Now remove what does not fit.&quot;}
+            &lt;/h1&gt;
+          &lt;/div&gt;
+          &lt;button
+            type=&quot;button&quot;
+            onClick={() =&gt; router.push(&quot;/opportunities&quot;)}
+            className=&quot;shrink-0 rounded-lg border border-line bg-card px-3 py-2 text-[12px] font-medium text-ink-soft hover:border-line-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand&quot;
+          &gt;
+            Show results now
+          &lt;/button&gt;
+        &lt;/div&gt;
+
+        &lt;AnimatePresence mode=&quot;wait&quot;&gt;
+          {scene === &quot;document&quot; ? (
+            &lt;motion.div
+              key=&quot;document&quot;
+              initial={false}
+              exit={shouldReduceMotion ? undefined : { opacity: 0, y: -10 }}
+              transition={{ duration: motionTokens.duration.standard }}
+            &gt;
+              &lt;DocumentIntelligence bill={bills[0]} household={household} visibleFacts={visibleFacts} /&gt;
+            &lt;/motion.div&gt;
+          ) : (
+            &lt;motion.div
+              key=&quot;filter&quot;
+              initial={shouldReduceMotion ? false : { opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: motionTokens.duration.standard, ease: motionTokens.easeOut }}
+              className=&quot;py-8 sm:py-12&quot;
+            &gt;
+              &lt;ProgramFilterSequence summary={summary} visibleRows={shouldReduceMotion ? FILTER_ROW_COUNT : visibleRows} /&gt;
+            &lt;/motion.div&gt;
+          )}
+        &lt;/AnimatePresence&gt;
       &lt;/div&gt;
     &lt;/div&gt;
   );
@@ -1671,49 +1733,60 @@ export function AnalysisSequence() {
 </code></pre>
     </details>
 <details class="source" data-search="uxui/components/applicationpacket.tsx" >
-      <summary><span>uxui/components/ApplicationPacket.tsx</span><small>45 lines</small></summary>
+      <summary><span>uxui/components/ApplicationPacket.tsx</span><small>56 lines</small></summary>
       <pre><code>&quot;use client&quot;;
 
-import { motion, useReducedMotion } from &quot;framer-motion&quot;;
+import { useEffect, useState } from &quot;react&quot;;
+import { AnimatePresence, motion, useReducedMotion } from &quot;framer-motion&quot;;
+import { CheckCircle2, FileQuestion, Hand } from &quot;lucide-react&quot;;
 import { ApplicationField } from &quot;@/lib/types&quot;;
+import { useGreenlightAudio } from &quot;@/hooks/useGreenlightAudio&quot;;
 import { motionTokens } from &quot;@/lib/motion/tokens&quot;;
+
+const sourceLabel: Record&lt;ApplicationField[&quot;source&quot;], string&gt; = {
+  extracted: &quot;from bill&quot;,
+  confirmed: &quot;human confirmed&quot;,
+  calculated: &quot;calculated&quot;,
+  missing: &quot;still needed&quot;,
+  declaration: &quot;requires you&quot;,
+};
 
 export function ApplicationPacket({ fields }: { fields: ApplicationField[] }) {
   const shouldReduceMotion = useReducedMotion();
-  const complete = fields.filter((field) =&gt; field.source !== &quot;missing&quot;).length;
+  const { play } = useGreenlightAudio();
+  const [visibleCount, setVisibleCount] = useState(shouldReduceMotion ? fields.length : 3);
+  const visibleFields = fields.slice(0, shouldReduceMotion ? fields.length : visibleCount);
+  const complete = visibleFields.filter((field) =&gt; ![&quot;missing&quot;, &quot;declaration&quot;].includes(field.source)).length;
+
+  useEffect(() =&gt; {
+    if (shouldReduceMotion || visibleCount &gt;= fields.length) return;
+    const timer = window.setTimeout(() =&gt; {
+      if (visibleCount === 3 || visibleCount === fields.length - 1) play(&quot;step&quot;, { gainScale: 0.42 });
+      setVisibleCount((count) =&gt; Math.min(count + 1, fields.length));
+    }, 105);
+    return () =&gt; window.clearTimeout(timer);
+  }, [fields.length, play, shouldReduceMotion, visibleCount]);
 
   return (
-    &lt;motion.div
-      className=&quot;rounded-lg border border-line bg-card p-4&quot;
-      initial={shouldReduceMotion ? false : { opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: motionTokens.duration.standard, delay: shouldReduceMotion ? 0 : 0.32, ease: motionTokens.easeOut }}
-    &gt;
-      &lt;div className=&quot;flex items-center justify-between gap-4 mb-3&quot;&gt;
-        &lt;p className=&quot;text-[14px] font-medium&quot;&gt;Application ready for review&lt;/p&gt;
-        &lt;span className=&quot;text-[13px] text-ink-muted tabular-nums shrink-0&quot;&gt;{complete} / {fields.length} fields complete&lt;/span&gt;
+    &lt;motion.section className=&quot;rounded-2xl border border-line bg-card p-4&quot; initial={shouldReduceMotion ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: motionTokens.duration.standard, ease: motionTokens.easeOut }}&gt;
+      &lt;div className=&quot;mb-4 flex items-end justify-between gap-4&quot;&gt;
+        &lt;div&gt;&lt;p className=&quot;text-[12px] font-medium text-brand&quot;&gt;Application readiness&lt;/p&gt;&lt;h2 className=&quot;mt-1 text-lg font-semibold tracking-[-0.025em]&quot;&gt;{complete} fields you do not have to fill&lt;/h2&gt;&lt;/div&gt;
+        &lt;span className=&quot;shrink-0 text-xl font-semibold tabular-nums&quot;&gt;{complete} / {fields.length}&lt;/span&gt;
       &lt;/div&gt;
-      &lt;dl className=&quot;flex flex-col gap-2&quot;&gt;
-        {fields.map((field, index) =&gt; (
-          &lt;motion.div
-            key={field.key}
-            className=&quot;flex items-center justify-between gap-4 text-[13px]&quot;
-            initial={shouldReduceMotion ? false : { opacity: 0, y: 5 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{
-              duration: motionTokens.duration.fast,
-              delay: shouldReduceMotion ? 0 : 0.44 + index * 0.08,
-              ease: motionTokens.easeOut,
-            }}
-          &gt;
-            &lt;dt className=&quot;text-ink-muted&quot;&gt;{field.label}&lt;/dt&gt;
-            &lt;dd className={`text-right ${field.source === &quot;missing&quot; ? &quot;text-warning&quot; : &quot;text-ink&quot;}`}&gt;
-              {field.value || &quot;Needs your input&quot;}
-            &lt;/dd&gt;
-          &lt;/motion.div&gt;
-        ))}
+      &lt;dl className=&quot;grid gap-2 sm:grid-cols-2&quot;&gt;
+        &lt;AnimatePresence initial={false}&gt;
+          {visibleFields.map((field) =&gt; {
+            const incomplete = field.source === &quot;missing&quot; || field.source === &quot;declaration&quot;;
+            const Icon = field.source === &quot;declaration&quot; ? Hand : incomplete ? FileQuestion : CheckCircle2;
+            return (
+              &lt;motion.div key={field.key} initial={shouldReduceMotion ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className=&quot;rounded-xl bg-canvas/75 p-3&quot;&gt;
+                &lt;div className=&quot;flex items-start gap-2.5&quot;&gt;&lt;Icon size={15} className={`mt-0.5 shrink-0 ${incomplete ? &quot;text-warning&quot; : &quot;text-success&quot;}`} aria-hidden=&quot;true&quot; /&gt;&lt;div className=&quot;min-w-0&quot;&gt;&lt;dt className=&quot;text-[11px] text-ink-muted&quot;&gt;{field.label}&lt;/dt&gt;&lt;dd className={`truncate text-[12px] font-semibold capitalize ${incomplete ? &quot;text-warning&quot; : &quot;text-ink&quot;}`}&gt;{field.value || (field.source === &quot;declaration&quot; ? &quot;Applicant action&quot; : &quot;Needs input&quot;)}&lt;/dd&gt;&lt;span className=&quot;mt-1 block text-[9px] font-semibold uppercase tracking-[0.1em] text-ink-muted&quot;&gt;{sourceLabel[field.source]}&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;
+              &lt;/motion.div&gt;
+            );
+          })}
+        &lt;/AnimatePresence&gt;
       &lt;/dl&gt;
-    &lt;/motion.div&gt;
+    &lt;/motion.section&gt;
   );
 }
 </code></pre>
@@ -1747,7 +1820,7 @@ export function AudioBootstrap() {
 </code></pre>
     </details>
 <details class="source" data-search="uxui/components/billuploader.tsx" >
-      <summary><span>uxui/components/BillUploader.tsx</span><small>291 lines</small></summary>
+      <summary><span>uxui/components/BillUploader.tsx</span><small>316 lines</small></summary>
       <pre><code>&quot;use client&quot;;
 
 import { useRouter } from &quot;next/navigation&quot;;
@@ -1756,10 +1829,12 @@ import { AnimatePresence, motion, useReducedMotion } from &quot;framer-motion&qu
 import { Camera, CheckCircle2, FileText, Loader2, Upload, X } from &quot;lucide-react&quot;;
 import { useGreenlight } from &quot;@/lib/context/greenlight-context&quot;;
 import { HouseholdProfile, Opportunity, UtilityBillExtraction } from &quot;@/lib/types&quot;;
+import { OptimizationObjective } from &quot;@/lib/types&quot;;
 import { TactileButton } from &quot;@/components/motion/TactileButton&quot;;
 import { CinematicReveal } from &quot;@/components/motion/CinematicReveal&quot;;
 import { useGreenlightAudio } from &quot;@/hooks/useGreenlightAudio&quot;;
 import { motionTokens } from &quot;@/lib/motion/tokens&quot;;
+import { ObjectiveSelector } from &quot;@/components/ObjectiveSelector&quot;;
 
 interface AnalyzeResponse {
   mode: &quot;live&quot; | &quot;demo&quot;;
@@ -1797,6 +1872,8 @@ export function BillUploader() {
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [error, setError] = useState&lt;string | null&gt;(null);
   const [stepIndex, setStepIndex] = useState(0);
+  const [choosingObjective, setChoosingObjective] = useState(false);
+  const [usingDemo, setUsingDemo] = useState(false);
 
   // stepIndex resets when analysis *starts* (in analyzeFiles below, already
   // an event handler) — not here. The step panel only renders while
@@ -1826,6 +1903,8 @@ export function BillUploader() {
     if (files.length === 0) return;
     setError(null);
     play(&quot;upload&quot;);
+    setUsingDemo(false);
+    setChoosingObjective(true);
     setSelectedFiles((prev) =&gt; {
       const existingKeys = new Set(prev.map(fileKey));
       const next = files.filter((f) =&gt; !existingKeys.has(fileKey(f)));
@@ -1838,11 +1917,21 @@ export function BillUploader() {
   };
 
   const goToDemo = () =&gt; {
-    startDemo();
-    router.push(&quot;/analyze&quot;);
+    play(&quot;upload&quot;);
+    setUsingDemo(true);
+    setChoosingObjective(true);
   };
 
-  const analyzeFiles = async () =&gt; {
+  const beginWithObjective = (objective: OptimizationObjective) =&gt; {
+    if (usingDemo) {
+      startDemo(objective);
+      router.push(&quot;/analyze&quot;);
+      return;
+    }
+    void analyzeFiles(objective);
+  };
+
+  const analyzeFiles = async (objective: OptimizationObjective) =&gt; {
     if (selectedFiles.length === 0) return;
     setIsAnalyzing(true);
     setStepIndex(0);
@@ -1857,7 +1946,7 @@ export function BillUploader() {
       });
       if (!res.ok) throw new Error(`Analysis request failed (${res.status})`);
       const result: AnalyzeResponse = await res.json();
-      startFromAnalysis(result.bills, result.household, result.opportunities, result.mode === &quot;live&quot;);
+      startFromAnalysis(result.bills, result.household, result.opportunities, result.mode === &quot;live&quot;, objective);
       router.push(&quot;/analyze&quot;);
     } catch (err) {
       play(&quot;error&quot;);
@@ -1914,6 +2003,15 @@ export function BillUploader() {
           &lt;/ul&gt;
           &lt;p className=&quot;relative mt-5 text-[11px] text-ink-muted&quot;&gt;Live document analysis usually takes 20-30 seconds.&lt;/p&gt;
         &lt;/div&gt;
+      ) : choosingObjective ? (
+        &lt;ObjectiveSelector
+          sourceLabel={usingDemo ? &quot;Sample household ready&quot; : `${selectedFiles.length} bill${selectedFiles.length === 1 ? &quot;&quot; : &quot;s&quot;} accepted`}
+          onSelect={beginWithObjective}
+          onBack={() =&gt; {
+            setChoosingObjective(false);
+            setUsingDemo(false);
+          }}
+        /&gt;
       ) : (
         &lt;motion.button
           onClick={() =&gt; inputRef.current?.click()}
@@ -1967,7 +2065,7 @@ export function BillUploader() {
         }}
       /&gt;
 
-      {!isAnalyzing &amp;&amp; selectedFiles.length &gt; 0 &amp;&amp; (
+      {!isAnalyzing &amp;&amp; !choosingObjective &amp;&amp; selectedFiles.length &gt; 0 &amp;&amp; (
         &lt;ul className=&quot;mt-3 flex flex-col gap-1.5 px-1&quot;&gt;
           &lt;AnimatePresence initial={false}&gt;
             {selectedFiles.map((f) =&gt; (
@@ -2000,14 +2098,14 @@ export function BillUploader() {
         &lt;/CinematicReveal&gt;
       )}
 
-      {!isAnalyzing &amp;&amp; (
+      {!isAnalyzing &amp;&amp; !choosingObjective &amp;&amp; (
         &lt;div className=&quot;mt-3 flex flex-col gap-2 sm:grid sm:grid-cols-2&quot;&gt;
           {selectedFiles.length &gt; 0 ? (
             &lt;TactileButton
-              onClick={analyzeFiles}
+              onClick={() =&gt; setChoosingObjective(true)}
               className=&quot;rounded-xl bg-brand py-3 text-[14px] font-semibold text-white shadow-[0_9px_24px_rgba(31,92,63,0.20)] transition-colors hover:bg-[#174c33]&quot;
             &gt;
-              {`Analyze ${selectedFiles.length} bill${selectedFiles.length === 1 ? &quot;&quot; : &quot;s&quot;}`}
+              Choose what matters
             &lt;/TactileButton&gt;
           ) : (
             &lt;TactileButton
@@ -2027,7 +2125,7 @@ export function BillUploader() {
           &lt;/TactileButton&gt;
         &lt;/div&gt;
       )}
-      {!isAnalyzing &amp;&amp; selectedFiles.length &gt; 0 &amp;&amp; (
+      {!isAnalyzing &amp;&amp; !choosingObjective &amp;&amp; selectedFiles.length &gt; 0 &amp;&amp; (
         &lt;button
           onClick={goToDemo}
           className=&quot;mt-2 w-full text-center text-[12px] text-ink-muted hover:text-ink transition-colors&quot;
@@ -2075,9 +2173,244 @@ export function BillUploader() {
 }
 </code></pre>
     </details>
+<details class="source" data-search="uxui/components/demoresolution.tsx" >
+      <summary><span>uxui/components/DemoResolution.tsx</span><small>22 lines</small></summary>
+      <pre><code>import Link from &quot;next/link&quot;;
+import { CheckCircle2 } from &quot;lucide-react&quot;;
+import { AgentCase, Opportunity } from &quot;@/lib/types&quot;;
+
+export function DemoResolution({ opportunity, agentCase }: { opportunity: Opportunity; agentCase: AgentCase }) {
+  const prepared = agentCase.applicationFields.filter((field) =&gt; ![&quot;missing&quot;, &quot;declaration&quot;].includes(field.source)).length;
+  return (
+    &lt;section className=&quot;rounded-2xl border border-brand/25 bg-brand p-5 text-white shadow-[0_22px_60px_rgba(31,92,63,0.20)] sm:p-6&quot;&gt;
+      &lt;CheckCircle2 size={24} className=&quot;text-white/85&quot; aria-hidden=&quot;true&quot; /&gt;
+      &lt;h2 className=&quot;mt-3 text-2xl font-semibold tracking-[-0.035em]&quot;&gt;The money was already there.&lt;/h2&gt;
+      &lt;p className=&quot;mt-2 text-[13px] leading-relaxed text-white/78&quot;&gt;Greenlight removed the uncertainty between this household and the correct next action.&lt;/p&gt;
+      &lt;dl className=&quot;mt-5 grid grid-cols-2 gap-3 text-[12px]&quot;&gt;
+        &lt;div&gt;&lt;dt className=&quot;text-white/60&quot;&gt;Potential incentive&lt;/dt&gt;&lt;dd className=&quot;mt-1 text-xl font-semibold tabular-nums&quot;&gt;${opportunity.estimatedIncentive.toLocaleString(&quot;en-CA&quot;)}&lt;/dd&gt;&lt;/div&gt;
+        &lt;div&gt;&lt;dt className=&quot;text-white/60&quot;&gt;Fields prepared&lt;/dt&gt;&lt;dd className=&quot;mt-1 text-xl font-semibold tabular-nums&quot;&gt;{prepared} / {agentCase.applicationFields.length}&lt;/dd&gt;&lt;/div&gt;
+        &lt;div&gt;&lt;dt className=&quot;text-white/60&quot;&gt;Verified route&lt;/dt&gt;&lt;dd className=&quot;mt-1 font-semibold&quot;&gt;{agentCase.actionRoute?.verified ? &quot;Found&quot; : &quot;Not verified&quot;}&lt;/dd&gt;&lt;/div&gt;
+        &lt;div&gt;&lt;dt className=&quot;text-white/60&quot;&gt;Human approvals&lt;/dt&gt;&lt;dd className=&quot;mt-1 font-semibold&quot;&gt;Still required&lt;/dd&gt;&lt;/div&gt;
+      &lt;/dl&gt;
+      &lt;Link href=&quot;/plan&quot; className=&quot;mt-5 block rounded-xl bg-white px-4 py-3 text-center text-[13px] font-semibold text-brand hover:bg-white/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white&quot;&gt;Try a what-if&lt;/Link&gt;
+    &lt;/section&gt;
+  );
+}
+</code></pre>
+    </details>
+<details class="source" data-search="uxui/components/documentintelligence.tsx" >
+      <summary><span>uxui/components/DocumentIntelligence.tsx</span><small>181 lines</small></summary>
+      <pre><code>&quot;use client&quot;;
+
+import { useState } from &quot;react&quot;;
+import { AnimatePresence, motion, useReducedMotion } from &quot;framer-motion&quot;;
+import { Building2, Check, FileText, Hand, HelpCircle, MapPin, Waves } from &quot;lucide-react&quot;;
+import { HouseholdProfile, UtilityBillExtraction } from &quot;@/lib/types&quot;;
+import { motionTokens } from &quot;@/lib/motion/tokens&quot;;
+
+type FactKind = &quot;known&quot; | &quot;inferred&quot; | &quot;needed&quot; | &quot;human&quot;;
+
+interface Fact {
+  id: string;
+  label: string;
+  value: string;
+  kind: FactKind;
+  confidence: string;
+  why: string;
+  icon: typeof Check;
+}
+
+const factPresentation: Record&lt;FactKind, { symbol: string; label: string; tone: string }&gt; = {
+  known: { symbol: &quot;✓&quot;, label: &quot;Extracted&quot;, tone: &quot;text-success bg-success-soft&quot; },
+  inferred: { symbol: &quot;~&quot;, label: &quot;Inferred&quot;, tone: &quot;text-brand bg-brand-soft&quot; },
+  needed: { symbol: &quot;?&quot;, label: &quot;Still needed&quot;, tone: &quot;text-warning bg-warning-soft&quot; },
+  human: { symbol: &quot;!&quot;, label: &quot;Requires you&quot;, tone: &quot;text-ink-soft bg-canvas&quot; },
+};
+
+export function DocumentIntelligence({
+  bill,
+  household,
+  visibleFacts,
+}: {
+  bill: UtilityBillExtraction;
+  household: HouseholdProfile;
+  visibleFacts: number;
+}) {
+  const shouldReduceMotion = useReducedMotion();
+  const [activeFact, setActiveFact] = useState&lt;string | null&gt;(null);
+  const usage = bill.naturalGas?.usageM3 != null
+    ? `${bill.naturalGas.usageM3.toLocaleString(&quot;en-CA&quot;)} m³`
+    : bill.electricity?.usageKwh != null
+      ? `${bill.electricity.usageKwh.toLocaleString(&quot;en-CA&quot;)} kWh`
+      : &quot;Not detected&quot;;
+
+  const facts: Fact[] = [
+    {
+      id: &quot;provider&quot;,
+      label: &quot;Utility provider&quot;,
+      value: bill.provider ?? &quot;Not detected&quot;,
+      kind: &quot;known&quot;,
+      confidence: bill.provider ? &quot;High confidence&quot; : &quot;Needs verification&quot;,
+      why: &quot;Identifies provider-specific programs and confirms the household's service territory.&quot;,
+      icon: Building2,
+    },
+    {
+      id: &quot;usage&quot;,
+      label: &quot;Billing usage&quot;,
+      value: usage,
+      kind: &quot;known&quot;,
+      confidence: usage === &quot;Not detected&quot; ? &quot;Needs verification&quot; : &quot;High confidence&quot;,
+      why: &quot;Supports annualized usage estimates and the deterministic savings model.&quot;,
+      icon: Waves,
+    },
+    {
+      id: &quot;jurisdiction&quot;,
+      label: &quot;Jurisdiction&quot;,
+      value: `${household.city ?? &quot;Unknown&quot;}, ${household.provinceState}`,
+      kind: &quot;known&quot;,
+      confidence: household.city ? &quot;High confidence&quot; : &quot;Needs verification&quot;,
+      why: &quot;Determines which government and utility incentive rules can apply.&quot;,
+      icon: MapPin,
+    },
+    {
+      id: &quot;heating&quot;,
+      label: &quot;Primary heating&quot;,
+      value: household.primaryHeating.replace(&quot;_&quot;, &quot; &quot;),
+      kind: &quot;inferred&quot;,
+      confidence: &quot;Model interpretation&quot;,
+      why: &quot;Helps identify relevant equipment programs. Greenlight keeps this separate from directly extracted facts.&quot;,
+      icon: FileText,
+    },
+    {
+      id: &quot;tenure&quot;,
+      label: &quot;Property tenure&quot;,
+      value: household.tenure === &quot;unknown&quot; ? &quot;Unresolved&quot; : household.tenure,
+      kind: household.tenure === &quot;unknown&quot; ? &quot;needed&quot; : &quot;known&quot;,
+      confidence: household.tenure === &quot;unknown&quot; ? &quot;Not present on the bill&quot; : &quot;Human confirmed&quot;,
+      why: &quot;Some programs require owner participation. Greenlight asks instead of guessing.&quot;,
+      icon: HelpCircle,
+    },
+    {
+      id: &quot;declaration&quot;,
+      label: &quot;Legal declaration&quot;,
+      value: &quot;Requires applicant&quot;,
+      kind: &quot;human&quot;,
+      confidence: &quot;Never inferred&quot;,
+      why: &quot;Greenlight will prepare the field but will never sign or certify a declaration for you.&quot;,
+      icon: Hand,
+    },
+  ];
+
+  return (
+    &lt;div className=&quot;grid w-full gap-5 lg:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)] lg:items-start&quot;&gt;
+      &lt;motion.article
+        initial={shouldReduceMotion ? false : { opacity: 0, x: -18, rotate: -0.8 }}
+        animate={{ opacity: 1, x: 0, rotate: 0 }}
+        transition={{ duration: motionTokens.duration.slow, ease: motionTokens.easeOut }}
+        className=&quot;relative overflow-hidden rounded-2xl border border-line bg-card p-5 shadow-[0_22px_55px_rgba(39,58,45,0.10)] sm:p-7&quot;
+      &gt;
+        &lt;div className=&quot;absolute inset-x-0 top-0 h-1 bg-brand&quot; aria-hidden=&quot;true&quot; /&gt;
+        &lt;div className=&quot;flex items-start justify-between gap-4&quot;&gt;
+          &lt;div&gt;
+            &lt;p className=&quot;text-[11px] font-semibold uppercase tracking-[0.14em] text-brand&quot;&gt;Utility statement&lt;/p&gt;
+            &lt;h2 className=&quot;mt-2 text-2xl font-semibold tracking-[-0.035em]&quot;&gt;{bill.provider ?? &quot;Utility provider&quot;}&lt;/h2&gt;
+          &lt;/div&gt;
+          &lt;FileText size={24} className=&quot;text-brand/60&quot; aria-hidden=&quot;true&quot; /&gt;
+        &lt;/div&gt;
+        &lt;dl className=&quot;mt-10 grid grid-cols-2 gap-x-6 gap-y-7&quot;&gt;
+          &lt;div&gt;&lt;dt className=&quot;text-[11px] text-ink-muted&quot;&gt;Billing period&lt;/dt&gt;&lt;dd className=&quot;mt-1 text-[13px] font-medium&quot;&gt;{bill.billingPeriod.start ?? &quot;Unknown&quot;}&lt;br /&gt;to {bill.billingPeriod.end ?? &quot;Unknown&quot;}&lt;/dd&gt;&lt;/div&gt;
+          &lt;div&gt;&lt;dt className=&quot;text-[11px] text-ink-muted&quot;&gt;Amount&lt;/dt&gt;&lt;dd className=&quot;mt-1 text-2xl font-semibold tabular-nums&quot;&gt;{bill.totalAmount == null ? &quot;Unknown&quot; : `$${bill.totalAmount.toFixed(2)}`}&lt;/dd&gt;&lt;/div&gt;
+          &lt;div&gt;&lt;dt className=&quot;text-[11px] text-ink-muted&quot;&gt;Usage&lt;/dt&gt;&lt;dd className=&quot;mt-1 text-lg font-semibold tabular-nums&quot;&gt;{usage}&lt;/dd&gt;&lt;/div&gt;
+          &lt;div&gt;&lt;dt className=&quot;text-[11px] text-ink-muted&quot;&gt;Account&lt;/dt&gt;&lt;dd className=&quot;mt-1 text-[13px] font-medium capitalize&quot;&gt;{bill.accountType}&lt;/dd&gt;&lt;/div&gt;
+        &lt;/dl&gt;
+        &lt;div className=&quot;mt-9 border-t border-line pt-4 text-[11px] leading-relaxed text-ink-muted&quot;&gt;
+          Demo mode uses a synthetic household. Live uploads are labeled separately and validated before calculations run.
+        &lt;/div&gt;
+      &lt;/motion.article&gt;
+
+      &lt;div&gt;
+        &lt;div className=&quot;mb-3 flex items-center justify-between gap-4&quot;&gt;
+          &lt;p className=&quot;text-[13px] font-semibold&quot;&gt;What Greenlight understands&lt;/p&gt;
+          &lt;p className=&quot;text-[11px] text-ink-muted&quot;&gt;Tap any fact&lt;/p&gt;
+        &lt;/div&gt;
+        &lt;div className=&quot;flex flex-col gap-2&quot;&gt;
+          &lt;AnimatePresence initial={false}&gt;
+            {facts.slice(0, shouldReduceMotion ? facts.length : visibleFacts).map((fact) =&gt; {
+              const presentation = factPresentation[fact.kind];
+              const isActive = activeFact === fact.id;
+              const Icon = fact.icon;
+              return (
+                &lt;motion.button
+                  type=&quot;button&quot;
+                  key={fact.id}
+                  initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() =&gt; setActiveFact(isActive ? null : fact.id)}
+                  className=&quot;rounded-xl border border-line bg-card p-3.5 text-left transition-colors hover:border-line-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand&quot;
+                  aria-expanded={isActive}
+                &gt;
+                  &lt;span className=&quot;flex items-center gap-3&quot;&gt;
+                    &lt;span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${presentation.tone}`}&gt;&lt;Icon size={15} aria-hidden=&quot;true&quot; /&gt;&lt;/span&gt;
+                    &lt;span className=&quot;min-w-0 flex-1&quot;&gt;
+                      &lt;span className=&quot;block text-[11px] text-ink-muted&quot;&gt;{fact.label}&lt;/span&gt;
+                      &lt;span className=&quot;block truncate text-[14px] font-semibold capitalize&quot;&gt;{fact.value}&lt;/span&gt;
+                    &lt;/span&gt;
+                    &lt;span className={`rounded-md px-2 py-1 text-[10px] font-semibold ${presentation.tone}`}&gt;{presentation.symbol} {presentation.label}&lt;/span&gt;
+                  &lt;/span&gt;
+                  &lt;AnimatePresence initial={false}&gt;
+                    {isActive &amp;&amp; (
+                      &lt;motion.span
+                        initial={shouldReduceMotion ? false : { opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: &quot;auto&quot; }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className=&quot;mt-3 block border-t border-line pt-3&quot;
+                      &gt;
+                        &lt;span className=&quot;block text-[11px] font-medium text-brand&quot;&gt;{fact.confidence}&lt;/span&gt;
+                        &lt;span className=&quot;mt-1 block text-[12px] leading-relaxed text-ink-soft&quot;&gt;{fact.why}&lt;/span&gt;
+                      &lt;/motion.span&gt;
+                    )}
+                  &lt;/AnimatePresence&gt;
+                &lt;/motion.button&gt;
+              );
+            })}
+          &lt;/AnimatePresence&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  );
+}
+</code></pre>
+    </details>
+<details class="source" data-search="uxui/components/eligibilitydelta.tsx" >
+      <summary><span>uxui/components/EligibilityDelta.tsx</span><small>19 lines</small></summary>
+      <pre><code>&quot;use client&quot;;
+
+import { motion, useReducedMotion } from &quot;framer-motion&quot;;
+import { ArrowRight, CheckCircle2, XCircle } from &quot;lucide-react&quot;;
+import { TenureDecisionDelta } from &quot;@/lib/types&quot;;
+import { motionTokens } from &quot;@/lib/motion/tokens&quot;;
+
+export function EligibilityDelta({ delta }: { delta: TenureDecisionDelta }) {
+  const shouldReduceMotion = useReducedMotion();
+  const positive = delta.newlyReady &gt; 0;
+  return (
+    &lt;motion.div initial={shouldReduceMotion ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: motionTokens.duration.standard }} className=&quot;rounded-2xl border border-brand/20 bg-brand-soft/70 p-4&quot;&gt;
+      &lt;div className=&quot;flex items-center gap-2 text-[12px] font-semibold text-brand&quot;&gt;Your answer changed the result&lt;/div&gt;
+      &lt;div className=&quot;mt-3 flex items-center gap-3 text-[14px]&quot;&gt;&lt;span className=&quot;rounded-lg bg-card px-2.5 py-1.5 capitalize text-ink-muted&quot;&gt;{delta.from}&lt;/span&gt;&lt;ArrowRight size={15} className=&quot;text-brand&quot; aria-hidden=&quot;true&quot; /&gt;&lt;span className=&quot;rounded-lg bg-card px-2.5 py-1.5 font-semibold capitalize&quot;&gt;{delta.to}&lt;/span&gt;&lt;/div&gt;
+      &lt;div className=&quot;mt-3 flex items-start gap-2 text-[12px] leading-relaxed text-ink-soft&quot;&gt;{positive ? &lt;CheckCircle2 size={15} className=&quot;mt-0.5 shrink-0 text-success&quot; aria-hidden=&quot;true&quot; /&gt; : &lt;XCircle size={15} className=&quot;mt-0.5 shrink-0 text-danger&quot; aria-hidden=&quot;true&quot; /&gt;}&lt;span&gt;{positive ? `${delta.newlyReady} opportunity${delta.newlyReady === 1 ? &quot; is&quot; : &quot; are&quot;} now ready to pursue.` : `${delta.newlyBlocked} opportunity${delta.newlyBlocked === 1 ? &quot; now requires&quot; : &quot; now require&quot;} owner participation.`}&lt;/span&gt;&lt;/div&gt;
+    &lt;/motion.div&gt;
+  );
+}
+</code></pre>
+    </details>
 <details class="source" data-search="uxui/components/eligibilitymatrix.tsx" >
-      <summary><span>uxui/components/EligibilityMatrix.tsx</span><small>29 lines</small></summary>
-      <pre><code>import { CheckCircle2, HelpCircle, XCircle } from &quot;lucide-react&quot;;
+      <summary><span>uxui/components/EligibilityMatrix.tsx</span><small>38 lines</small></summary>
+      <pre><code>&quot;use client&quot;;
+
+import { useState } from &quot;react&quot;;
+import { AnimatePresence, motion, useReducedMotion } from &quot;framer-motion&quot;;
+import { CheckCircle2, ChevronDown, HelpCircle, XCircle } from &quot;lucide-react&quot;;
 import { EligibilityEvidence } from &quot;@/lib/types&quot;;
 
 const icons = {
@@ -2088,20 +2421,25 @@ const icons = {
 };
 
 export function EligibilityMatrix({ evidence }: { evidence: EligibilityEvidence[] }) {
+  const shouldReduceMotion = useReducedMotion();
+  const [open, setOpen] = useState&lt;string | null&gt;(null);
   return (
-    &lt;div className=&quot;rounded-lg border border-line bg-card divide-y divide-line&quot;&gt;
-      {evidence.map((e) =&gt; (
-        &lt;div key={e.criterion} className=&quot;flex items-start gap-3 p-3.5&quot;&gt;
-          {icons[e.status]}
-          &lt;div className=&quot;min-w-0 flex-1&quot;&gt;
-            &lt;p className=&quot;text-[13px] font-medium&quot;&gt;{e.criterion}&lt;/p&gt;
-            &lt;p className=&quot;text-[12px] text-ink-muted mt-0.5&quot;&gt;
-              {e.observedValue || &quot;not confirmed&quot;} · expected {e.expectedValue}
-            &lt;/p&gt;
-            &lt;p className=&quot;text-[11px] text-ink-muted mt-0.5&quot;&gt;{e.source}&lt;/p&gt;
+    &lt;div className=&quot;divide-y divide-line overflow-hidden rounded-xl border border-line bg-card&quot;&gt;
+      {evidence.map((item) =&gt; {
+        const expanded = open === item.criterion;
+        return (
+          &lt;div key={item.criterion}&gt;
+            &lt;button type=&quot;button&quot; aria-expanded={expanded} onClick={() =&gt; setOpen(expanded ? null : item.criterion)} className=&quot;flex w-full items-start gap-3 p-3.5 text-left hover:bg-canvas/65 focus-visible:outline-2 focus-visible:outline-brand&quot;&gt;
+              &lt;span className=&quot;mt-0.5&quot;&gt;{icons[item.status]}&lt;/span&gt;
+              &lt;span className=&quot;min-w-0 flex-1&quot;&gt;&lt;span className=&quot;block text-[13px] font-medium&quot;&gt;{item.criterion}&lt;/span&gt;&lt;span className=&quot;mt-0.5 block text-[12px] text-ink-muted&quot;&gt;{item.observedValue || &quot;not confirmed&quot;} · expected {item.expectedValue}&lt;/span&gt;&lt;/span&gt;
+              &lt;ChevronDown size={15} className={`mt-1 shrink-0 text-ink-muted transition-transform ${expanded ? &quot;rotate-180&quot; : &quot;&quot;}`} aria-hidden=&quot;true&quot; /&gt;
+            &lt;/button&gt;
+            &lt;AnimatePresence initial={false}&gt;
+              {expanded &amp;&amp; &lt;motion.div initial={shouldReduceMotion ? false : { height: 0, opacity: 0 }} animate={{ height: &quot;auto&quot;, opacity: 1 }} exit={{ height: 0, opacity: 0 }} className=&quot;overflow-hidden&quot;&gt;&lt;div className=&quot;border-t border-line bg-canvas/55 px-11 py-3&quot;&gt;&lt;p className=&quot;text-[11px] font-semibold text-brand&quot;&gt;Evidence trail&lt;/p&gt;&lt;p className=&quot;mt-1 text-[12px] leading-relaxed text-ink-soft&quot;&gt;{item.source}&lt;/p&gt;&lt;p className=&quot;mt-2 text-[11px] text-ink-muted&quot;&gt;This rule is evaluated deterministically from the observed and expected values above.&lt;/p&gt;&lt;/div&gt;&lt;/motion.div&gt;}
+            &lt;/AnimatePresence&gt;
           &lt;/div&gt;
-        &lt;/div&gt;
-      ))}
+        );
+      })}
     &lt;/div&gt;
   );
 }
@@ -2121,11 +2459,16 @@ export function EligibilityMatrix({ evidence }: { evidence: EligibilityEvidence[
 </code></pre>
     </details>
 <details class="source" data-search="uxui/components/negotiatedplanview.tsx" >
-      <summary><span>uxui/components/NegotiatedPlanView.tsx</span><small>43 lines</small></summary>
-      <pre><code>import { NegotiatedPlan } from &quot;@/lib/types&quot;;
+      <summary><span>uxui/components/NegotiatedPlanView.tsx</span><small>55 lines</small></summary>
+      <pre><code>&quot;use client&quot;;
+
+import { motion, useReducedMotion } from &quot;framer-motion&quot;;
+import { NegotiatedPlan } from &quot;@/lib/types&quot;;
 import { Metric } from &quot;@/components/Metric&quot;;
+import { motionTokens } from &quot;@/lib/motion/tokens&quot;;
 
 export function NegotiatedPlanView({ plan }: { plan: NegotiatedPlan }) {
+  const shouldReduceMotion = useReducedMotion();
   if (plan.items.length === 0) {
     return (
       &lt;div className=&quot;rounded-lg border border-line bg-card p-4 text-[13px] text-ink-soft&quot;&gt;
@@ -2137,15 +2480,22 @@ export function NegotiatedPlanView({ plan }: { plan: NegotiatedPlan }) {
   return (
     &lt;div className=&quot;flex flex-col gap-4&quot;&gt;
       &lt;div className=&quot;rounded-lg border border-line bg-card divide-y divide-line&quot;&gt;
-        {plan.items.map((item) =&gt; (
-          &lt;div key={item.opportunityId} className=&quot;p-4&quot;&gt;
+        {plan.items.map((item, index) =&gt; (
+          &lt;motion.div
+            layout={!shouldReduceMotion}
+            key={item.opportunityId}
+            initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: motionTokens.duration.standard, delay: shouldReduceMotion ? 0 : index * 0.06 }}
+            className=&quot;p-4&quot;
+          &gt;
             &lt;p className=&quot;text-[14px] font-medium&quot;&gt;{item.title}&lt;/p&gt;
             &lt;div className=&quot;flex gap-4 mt-1 text-[13px] text-ink-soft tabular-nums&quot;&gt;
               &lt;span&gt;Net upfront ${item.upfrontCost.toLocaleString(&quot;en-CA&quot;)}&lt;/span&gt;
               &lt;span&gt;Incentive ${item.incentive.toLocaleString(&quot;en-CA&quot;)}&lt;/span&gt;
               &lt;span&gt;Savings ${item.annualSavings.toLocaleString(&quot;en-CA&quot;)}/yr&lt;/span&gt;
             &lt;/div&gt;
-          &lt;/div&gt;
+          &lt;/motion.div&gt;
         ))}
       &lt;/div&gt;
 
@@ -2166,63 +2516,288 @@ export function NegotiatedPlanView({ plan }: { plan: NegotiatedPlan }) {
 }
 </code></pre>
     </details>
-<details class="source" data-search="uxui/components/opportunityrow.tsx" >
-      <summary><span>uxui/components/OpportunityRow.tsx</span><small>58 lines</small></summary>
+<details class="source" data-search="uxui/components/objectiveselector.tsx" >
+      <summary><span>uxui/components/ObjectiveSelector.tsx</span><small>69 lines</small></summary>
       <pre><code>&quot;use client&quot;;
 
-import Link from &quot;next/link&quot;;
 import { motion, useReducedMotion } from &quot;framer-motion&quot;;
-import { ArrowRight } from &quot;lucide-react&quot;;
+import { ArrowDownToLine, Banknote, Layers3, TrendingUp } from &quot;lucide-react&quot;;
+import { OptimizationObjective } from &quot;@/lib/types&quot;;
+import { OBJECTIVES } from &quot;@/lib/experience&quot;;
+import { TactileButton } from &quot;@/components/motion/TactileButton&quot;;
+import { motionTokens } from &quot;@/lib/motion/tokens&quot;;
+
+const icons = {
+  max_value: Banknote,
+  min_upfront: ArrowDownToLine,
+  all_eligible: Layers3,
+  long_term_savings: TrendingUp,
+};
+
+export function ObjectiveSelector({
+  sourceLabel,
+  onSelect,
+  onBack,
+}: {
+  sourceLabel: string;
+  onSelect: (objective: OptimizationObjective) =&gt; void;
+  onBack: () =&gt; void;
+}) {
+  const shouldReduceMotion = useReducedMotion();
+
+  return (
+    &lt;motion.div
+      initial={shouldReduceMotion ? false : { opacity: 0, y: 12, scale: 0.985 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={motionTokens.springSoft}
+      className=&quot;rounded-[20px] border border-white/80 bg-white/52 p-4 text-left sm:p-6&quot;
+    &gt;
+      &lt;p className=&quot;text-[12px] font-medium text-brand/70&quot;&gt;{sourceLabel}&lt;/p&gt;
+      &lt;h2 className=&quot;mt-1 text-xl font-semibold tracking-[-0.025em] text-brand&quot;&gt;Before I look, what matters most?&lt;/h2&gt;
+      &lt;p className=&quot;mt-1 text-[13px] leading-relaxed text-ink-soft&quot;&gt;This choice changes the ranking and the plan Greenlight builds.&lt;/p&gt;
+
+      &lt;div className=&quot;mt-5 grid gap-2 sm:grid-cols-2&quot;&gt;
+        {OBJECTIVES.map((objective, index) =&gt; {
+          const Icon = icons[objective.id];
+          return (
+            &lt;motion.div
+              key={objective.id}
+              initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: motionTokens.duration.standard, delay: shouldReduceMotion ? 0 : index * 0.055 }}
+            &gt;
+              &lt;TactileButton
+                onClick={() =&gt; onSelect(objective.id)}
+                className=&quot;flex h-full min-h-[92px] w-full items-start gap-3 rounded-xl border border-brand/15 bg-white/58 p-3.5 text-left transition-colors hover:border-brand/40 hover:bg-white/86 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand&quot;
+              &gt;
+                &lt;Icon size={18} className=&quot;mt-0.5 shrink-0 text-brand&quot; aria-hidden=&quot;true&quot; /&gt;
+                &lt;span&gt;
+                  &lt;span className=&quot;block text-[13px] font-semibold leading-snug text-ink&quot;&gt;{objective.label}&lt;/span&gt;
+                  &lt;span className=&quot;mt-1 block text-[11.5px] leading-relaxed text-ink-muted&quot;&gt;{objective.detail}&lt;/span&gt;
+                &lt;/span&gt;
+              &lt;/TactileButton&gt;
+            &lt;/motion.div&gt;
+          );
+        })}
+      &lt;/div&gt;
+      &lt;button type=&quot;button&quot; onClick={onBack} className=&quot;mt-4 text-[12px] font-medium text-ink-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand&quot;&gt;
+        Choose a different bill
+      &lt;/button&gt;
+    &lt;/motion.div&gt;
+  );
+}
+</code></pre>
+    </details>
+<details class="source" data-search="uxui/components/opportunityrow.tsx" >
+      <summary><span>uxui/components/OpportunityRow.tsx</span><small>109 lines</small></summary>
+      <pre><code>&quot;use client&quot;;
+
+import { useState } from &quot;react&quot;;
+import Link from &quot;next/link&quot;;
+import { AnimatePresence, motion, useReducedMotion } from &quot;framer-motion&quot;;
+import { AlertTriangle, ArrowRight, CheckCircle2, ExternalLink, FileSearch, HelpCircle } from &quot;lucide-react&quot;;
 import { Opportunity } from &quot;@/lib/types&quot;;
+import { INCENTIVE_PROGRAMS } from &quot;@/lib/data/fixtures&quot;;
 import { ConfidenceIndicator } from &quot;@/components/ConfidenceIndicator&quot;;
 import { motionTokens } from &quot;@/lib/motion/tokens&quot;;
 
+type Interrogation = &quot;why&quot; | &quot;block&quot; | &quot;evidence&quot; | null;
+
 const statusLabel: Record&lt;Opportunity[&quot;status&quot;], string&gt; = {
   ready_to_pursue: &quot;Ready to pursue&quot;,
-  needs_answers: &quot;Needs 1 answer&quot;,
-  not_eligible: &quot;Not currently eligible&quot;,
+  needs_answers: &quot;Needs one answer&quot;,
+  not_eligible: &quot;Blocked by known facts&quot;,
 };
 
 const statusTone: Record&lt;Opportunity[&quot;status&quot;], string&gt; = {
   ready_to_pursue: &quot;text-success bg-success-soft&quot;,
   needs_answers: &quot;text-warning bg-warning-soft&quot;,
-  not_eligible: &quot;text-ink-muted bg-canvas&quot;,
+  not_eligible: &quot;text-danger bg-danger-soft&quot;,
 };
 
-export function OpportunityRow({ opportunity }: { opportunity: Opportunity }) {
+export function OpportunityRow({ opportunity, recommended = false }: { opportunity: Opportunity; recommended?: boolean }) {
   const shouldReduceMotion = useReducedMotion();
+  const [active, setActive] = useState&lt;Interrogation&gt;(null);
+  const program = INCENTIVE_PROGRAMS.find((item) =&gt; item.id === opportunity.incentiveId);
+  const passed = opportunity.evidence.filter((item) =&gt; item.status === &quot;pass&quot;);
+  const unresolved = opportunity.evidence.filter((item) =&gt; item.status === &quot;unknown&quot; || item.status === &quot;manual_review&quot;);
+  const failed = opportunity.evidence.filter((item) =&gt; item.status === &quot;fail&quot;);
+
+  const toggle = (next: Exclude&lt;Interrogation, null&gt;) =&gt; setActive((current) =&gt; current === next ? null : next);
 
   return (
-    &lt;motion.div
+    &lt;motion.article
+      layout
       whileHover={shouldReduceMotion ? undefined : { y: -2 }}
-      whileTap={{ scale: shouldReduceMotion ? 1 : 0.992 }}
       transition={motionTokens.springSoft}
+      className={`overflow-hidden rounded-2xl border bg-card transition-[border-color,box-shadow] ${recommended ? &quot;border-brand/45 shadow-[0_14px_38px_rgba(31,92,63,0.10)]&quot; : &quot;border-line hover:border-line-strong&quot;}`}
     &gt;
-      &lt;Link
-        href={`/opportunity/${opportunity.id}`}
-        className=&quot;group flex items-center justify-between gap-4 rounded-lg border border-line bg-card p-4 hover:border-line-strong hover:shadow-[0_10px_28px_rgba(23,23,26,0.05)] transition-[border-color,box-shadow] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand&quot;
-      &gt;
-        &lt;div className=&quot;min-w-0&quot;&gt;
-          &lt;p className=&quot;text-[15px] font-medium truncate&quot;&gt;{opportunity.title}&lt;/p&gt;
-          &lt;div className=&quot;flex items-center gap-3 mt-1.5&quot;&gt;
-            &lt;span className=&quot;text-[13px] text-ink-soft tabular-nums&quot;&gt;
-              Up to ${opportunity.estimatedIncentive.toLocaleString(&quot;en-CA&quot;)}
-            &lt;/span&gt;
-            &lt;span className={`text-[11px] font-medium rounded-full px-2 py-0.5 ${statusTone[opportunity.status]}`}&gt;
-              {statusLabel[opportunity.status]}
-            &lt;/span&gt;
-          &lt;/div&gt;
-          &lt;div className=&quot;mt-2&quot;&gt;
-            &lt;ConfidenceIndicator confidence={opportunity.eligibilityConfidence} /&gt;
+      &lt;div className=&quot;p-4 sm:p-5&quot;&gt;
+        &lt;div className=&quot;flex items-start justify-between gap-4&quot;&gt;
+          &lt;div className=&quot;min-w-0&quot;&gt;
+            {recommended &amp;&amp; &lt;p className=&quot;mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-brand&quot;&gt;Recommended for your objective&lt;/p&gt;}
+            &lt;Link href={`/opportunity/${opportunity.id}`} className=&quot;group inline-flex items-center gap-2 text-[16px] font-semibold tracking-[-0.015em] hover:text-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand&quot;&gt;
+              {opportunity.title}&lt;ArrowRight size={15} className=&quot;transition-transform group-hover:translate-x-0.5&quot; aria-hidden=&quot;true&quot; /&gt;
+            &lt;/Link&gt;
+            &lt;div className=&quot;mt-2 flex flex-wrap items-center gap-2.5&quot;&gt;
+              &lt;span className=&quot;text-[13px] font-semibold text-success tabular-nums&quot;&gt;Up to ${opportunity.estimatedIncentive.toLocaleString(&quot;en-CA&quot;)}&lt;/span&gt;
+              &lt;span className={`rounded-md px-2 py-1 text-[10px] font-semibold ${statusTone[opportunity.status]}`}&gt;{statusLabel[opportunity.status]}&lt;/span&gt;
+            &lt;/div&gt;
+            &lt;div className=&quot;mt-2&quot;&gt;&lt;ConfidenceIndicator confidence={opportunity.eligibilityConfidence} /&gt;&lt;/div&gt;
           &lt;/div&gt;
         &lt;/div&gt;
-        &lt;ArrowRight
-          size={18}
-          className=&quot;text-ink-muted shrink-0 transition-transform group-hover:translate-x-0.5&quot;
-          aria-hidden=&quot;true&quot;
-        /&gt;
-      &lt;/Link&gt;
-    &lt;/motion.div&gt;
+
+        &lt;div className=&quot;mt-4 grid grid-cols-3 gap-1.5 border-t border-line pt-3&quot;&gt;
+          &lt;button type=&quot;button&quot; onClick={() =&gt; toggle(&quot;why&quot;)} className={`rounded-lg px-2 py-2 text-[11px] font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-brand ${active === &quot;why&quot; ? &quot;bg-brand text-white&quot; : &quot;bg-canvas text-ink-soft hover:text-ink&quot;}`}&gt;Why me?&lt;/button&gt;
+          &lt;button type=&quot;button&quot; onClick={() =&gt; toggle(&quot;block&quot;)} className={`rounded-lg px-2 py-2 text-[11px] font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-brand ${active === &quot;block&quot; ? &quot;bg-brand text-white&quot; : &quot;bg-canvas text-ink-soft hover:text-ink&quot;}`}&gt;Could block?&lt;/button&gt;
+          &lt;button type=&quot;button&quot; onClick={() =&gt; toggle(&quot;evidence&quot;)} className={`rounded-lg px-2 py-2 text-[11px] font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-brand ${active === &quot;evidence&quot; ? &quot;bg-brand text-white&quot; : &quot;bg-canvas text-ink-soft hover:text-ink&quot;}`}&gt;Evidence&lt;/button&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+
+      &lt;AnimatePresence initial={false} mode=&quot;wait&quot;&gt;
+        {active &amp;&amp; (
+          &lt;motion.div
+            key={active}
+            initial={shouldReduceMotion ? false : { opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: &quot;auto&quot; }}
+            exit={{ opacity: 0, height: 0 }}
+            className=&quot;overflow-hidden border-t border-line bg-canvas/55&quot;
+          &gt;
+            &lt;div className=&quot;p-4 sm:p-5&quot;&gt;
+              {active === &quot;why&quot; &amp;&amp; (
+                &lt;div&gt;
+                  &lt;p className=&quot;text-[13px] font-semibold&quot;&gt;Why this matched you&lt;/p&gt;
+                  &lt;ul className=&quot;mt-3 space-y-2&quot;&gt;
+                    {passed.map((item) =&gt; &lt;li key={item.criterion} className=&quot;flex gap-2 text-[12px]&quot;&gt;&lt;CheckCircle2 size={15} className=&quot;mt-0.5 shrink-0 text-success&quot; aria-hidden=&quot;true&quot; /&gt;&lt;span&gt;&lt;strong&gt;{item.criterion}&lt;/strong&gt;&lt;span className=&quot;block text-ink-muted&quot;&gt;Observed: {item.observedValue}&lt;/span&gt;&lt;/span&gt;&lt;/li&gt;)}
+                    {passed.length === 0 &amp;&amp; &lt;li className=&quot;text-[12px] text-ink-muted&quot;&gt;No criteria are confirmed yet.&lt;/li&gt;}
+                  &lt;/ul&gt;
+                &lt;/div&gt;
+              )}
+              {active === &quot;block&quot; &amp;&amp; (
+                &lt;div&gt;
+                  &lt;p className=&quot;text-[13px] font-semibold&quot;&gt;What could stop this&lt;/p&gt;
+                  &lt;ul className=&quot;mt-3 space-y-2&quot;&gt;
+                    {unresolved.map((item) =&gt; &lt;li key={item.criterion} className=&quot;flex gap-2 text-[12px]&quot;&gt;&lt;HelpCircle size={15} className=&quot;mt-0.5 shrink-0 text-warning&quot; aria-hidden=&quot;true&quot; /&gt;&lt;span&gt;&lt;strong&gt;{item.criterion}&lt;/strong&gt;&lt;span className=&quot;block text-ink-muted&quot;&gt;Still unresolved. Required: {item.expectedValue}&lt;/span&gt;&lt;/span&gt;&lt;/li&gt;)}
+                    {failed.map((item) =&gt; &lt;li key={item.criterion} className=&quot;flex gap-2 text-[12px]&quot;&gt;&lt;AlertTriangle size={15} className=&quot;mt-0.5 shrink-0 text-danger&quot; aria-hidden=&quot;true&quot; /&gt;&lt;span&gt;&lt;strong&gt;{item.criterion}&lt;/strong&gt;&lt;span className=&quot;block text-ink-muted&quot;&gt;Known mismatch: {item.observedValue}&lt;/span&gt;&lt;/span&gt;&lt;/li&gt;)}
+                    {unresolved.length === 0 &amp;&amp; failed.length === 0 &amp;&amp; &lt;li className=&quot;flex gap-2 text-[12px]&quot;&gt;&lt;CheckCircle2 size={15} className=&quot;text-success&quot; aria-hidden=&quot;true&quot; /&gt;No known blockers in the available facts.&lt;/li&gt;}
+                  &lt;/ul&gt;
+                &lt;/div&gt;
+              )}
+              {active === &quot;evidence&quot; &amp;&amp; (
+                &lt;div&gt;
+                  &lt;div className=&quot;flex items-center gap-2&quot;&gt;&lt;FileSearch size={16} className=&quot;text-brand&quot; aria-hidden=&quot;true&quot; /&gt;&lt;p className=&quot;text-[13px] font-semibold&quot;&gt;AI interprets. Evidence decides.&lt;/p&gt;&lt;/div&gt;
+                  &lt;p className=&quot;mt-2 text-[12px] leading-relaxed text-ink-soft&quot;&gt;{program?.actionRoute.sourceTitle ?? &quot;Official program requirements&quot;}&lt;/p&gt;
+                  &lt;p className=&quot;mt-1 text-[11px] text-ink-muted&quot;&gt;Verified {program?.lastVerifiedAt ?? &quot;date unavailable&quot;}&lt;/p&gt;
+                  {program?.officialUrl &amp;&amp; &lt;a href={program.officialUrl} target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot; className=&quot;mt-3 inline-flex items-center gap-1.5 text-[12px] font-semibold text-brand hover:underline&quot;&gt;View official source &lt;ExternalLink size={13} aria-hidden=&quot;true&quot; /&gt;&lt;/a&gt;}
+                &lt;/div&gt;
+              )}
+            &lt;/div&gt;
+          &lt;/motion.div&gt;
+        )}
+      &lt;/AnimatePresence&gt;
+    &lt;/motion.article&gt;
+  );
+}
+</code></pre>
+    </details>
+<details class="source" data-search="uxui/components/presentationcontrols.tsx" >
+      <summary><span>uxui/components/PresentationControls.tsx</span><small>43 lines</small></summary>
+      <pre><code>&quot;use client&quot;;
+
+import { useEffect } from &quot;react&quot;;
+import { useRouter, useSearchParams } from &quot;next/navigation&quot;;
+import { RotateCcw, StepBack } from &quot;lucide-react&quot;;
+import { useGreenlight } from &quot;@/lib/context/greenlight-context&quot;;
+
+export function PresentationControls() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { presentationMode, setPresentationMode, reset } = useGreenlight();
+  const requested = searchParams.get(&quot;presentation&quot;) === &quot;true&quot;;
+
+  useEffect(() =&gt; {
+    if (requested &amp;&amp; !presentationMode) setPresentationMode(true);
+  }, [presentationMode, requested, setPresentationMode]);
+
+  useEffect(() =&gt; {
+    if (!presentationMode) return;
+    const onKeyDown = (event: KeyboardEvent) =&gt; {
+      const target = event.target as HTMLElement | null;
+      if (target?.matches(&quot;input, textarea, select, [contenteditable='true']&quot;)) return;
+      if (event.key.toLowerCase() === &quot;r&quot;) {
+        event.preventDefault();
+        reset(true);
+        router.replace(&quot;/?presentation=true&quot;);
+      }
+    };
+    window.addEventListener(&quot;keydown&quot;, onKeyDown);
+    return () =&gt; window.removeEventListener(&quot;keydown&quot;, onKeyDown);
+  }, [presentationMode, reset, router]);
+
+  if (!presentationMode &amp;&amp; !requested) return null;
+
+  return (
+    &lt;aside className=&quot;fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-2xl border border-white/70 bg-white/88 p-2 shadow-[0_18px_50px_rgba(18,45,30,0.18)] backdrop-blur-xl&quot; aria-label=&quot;Presentation controls&quot;&gt;
+      &lt;span className=&quot;hidden px-2 text-[11px] font-semibold text-brand sm:inline&quot;&gt;Presentation mode&lt;/span&gt;
+      &lt;button type=&quot;button&quot; onClick={() =&gt; window.location.reload()} className=&quot;flex items-center gap-1.5 rounded-xl border border-line bg-card px-3 py-2 text-[12px] font-medium hover:bg-canvas&quot;&gt;&lt;StepBack size={13} aria-hidden=&quot;true&quot; /&gt;Restart scene&lt;/button&gt;
+      &lt;button type=&quot;button&quot; onClick={() =&gt; { reset(true); router.replace(&quot;/?presentation=true&quot;); }} className=&quot;flex items-center gap-1.5 rounded-xl bg-ink px-3 py-2 text-[12px] font-medium text-white hover:bg-ink/90&quot;&gt;&lt;RotateCcw size={13} aria-hidden=&quot;true&quot; /&gt;Reset demo&lt;/button&gt;
+    &lt;/aside&gt;
+  );
+}
+</code></pre>
+    </details>
+<details class="source" data-search="uxui/components/programfiltersequence.tsx" >
+      <summary><span>uxui/components/ProgramFilterSequence.tsx</span><small>53 lines</small></summary>
+      <pre><code>&quot;use client&quot;;
+
+import { motion, useReducedMotion } from &quot;framer-motion&quot;;
+import { CheckCircle2, HelpCircle, XCircle } from &quot;lucide-react&quot;;
+import { ProgramFilterSummary } from &quot;@/lib/types&quot;;
+import { motionTokens } from &quot;@/lib/motion/tokens&quot;;
+
+export function ProgramFilterSequence({ summary, visibleRows }: { summary: ProgramFilterSummary; visibleRows: number }) {
+  const shouldReduceMotion = useReducedMotion();
+  const excluded = summary.excludedJurisdiction + summary.excludedProvider + summary.excludedHousehold;
+  const rows = [
+    { label: &quot;Tracked Ontario programs reviewed&quot;, value: summary.considered, icon: CheckCircle2, tone: &quot;text-brand&quot; },
+    { label: &quot;Ruled out by known household facts&quot;, value: excluded, icon: XCircle, tone: excluded &gt; 0 ? &quot;text-danger&quot; : &quot;text-ink-muted&quot; },
+    { label: &quot;Need one missing fact&quot;, value: summary.unresolved, icon: HelpCircle, tone: &quot;text-warning&quot; },
+    { label: &quot;Can move forward now&quot;, value: summary.matched, icon: CheckCircle2, tone: &quot;text-success&quot; },
+  ];
+
+  return (
+    &lt;div className=&quot;mx-auto w-full max-w-3xl&quot;&gt;
+      &lt;div className=&quot;mb-8 text-center&quot;&gt;
+        &lt;h2 className=&quot;text-3xl font-semibold tracking-[-0.04em] sm:text-4xl&quot;&gt;Most programs are not yours. Let&amp;apos;s prove which ones are.&lt;/h2&gt;
+        &lt;p className=&quot;mx-auto mt-3 max-w-xl text-[14px] leading-relaxed text-ink-soft&quot;&gt;Greenlight applies structured household facts before any value is counted.&lt;/p&gt;
+      &lt;/div&gt;
+      &lt;div className=&quot;overflow-hidden rounded-2xl border border-line bg-card shadow-[0_24px_60px_rgba(39,58,45,0.08)]&quot;&gt;
+        {rows.slice(0, shouldReduceMotion ? rows.length : visibleRows).map((row, index) =&gt; {
+          const Icon = row.icon;
+          return (
+            &lt;motion.div
+              key={row.label}
+              initial={shouldReduceMotion ? false : { opacity: 0, x: -14 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: motionTokens.duration.standard, ease: motionTokens.easeOut }}
+              className=&quot;flex items-center gap-4 border-b border-line p-4 last:border-b-0 sm:px-6&quot;
+            &gt;
+              &lt;Icon size={18} className={row.tone} aria-hidden=&quot;true&quot; /&gt;
+              &lt;span className=&quot;flex-1 text-[14px] text-ink-soft&quot;&gt;{row.label}&lt;/span&gt;
+              &lt;span className=&quot;text-2xl font-semibold tabular-nums&quot;&gt;{row.value}&lt;/span&gt;
+              {index &lt; rows.length - 1 &amp;&amp; &lt;span className=&quot;w-10 text-right text-[11px] text-ink-muted&quot;&gt;of {summary.considered}&lt;/span&gt;}
+            &lt;/motion.div&gt;
+          );
+        })}
+      &lt;/div&gt;
+      &lt;motion.p
+        initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
+        animate={{ opacity: visibleRows &gt;= rows.length ? 1 : 0, y: visibleRows &gt;= rows.length ? 0 : 8 }}
+        className=&quot;mt-6 text-center text-xl font-semibold text-brand&quot;
+      &gt;
+        {summary.matched + summary.unresolved} worth investigating.
+      &lt;/motion.p&gt;
+    &lt;/div&gt;
   );
 }
 </code></pre>
@@ -2324,16 +2899,21 @@ export function SourceBadge({ url, label, verifiedAt }: { url: string; label: st
 </code></pre>
     </details>
 <details class="source" data-search="uxui/components/valuefoundhero.tsx" >
-      <summary><span>uxui/components/ValueFoundHero.tsx</span><small>64 lines</small></summary>
+      <summary><span>uxui/components/ValueFoundHero.tsx</span><small>91 lines</small></summary>
       <pre><code>&quot;use client&quot;;
 
-import { motion, useReducedMotion } from &quot;framer-motion&quot;;
 import { useEffect, useRef, useState } from &quot;react&quot;;
+import { AnimatePresence, motion, useReducedMotion } from &quot;framer-motion&quot;;
+import { ChevronDown } from &quot;lucide-react&quot;;
+import { Opportunity } from &quot;@/lib/types&quot;;
 import { useGreenlightAudio } from &quot;@/hooks/useGreenlightAudio&quot;;
 import { motionTokens } from &quot;@/lib/motion/tokens&quot;;
 
-export function ValueFoundHero({ total, opportunityCount }: { total: number; opportunityCount: number }) {
+export function ValueFoundHero({ opportunities }: { opportunities: Opportunity[] }) {
+  const pursuable = opportunities.filter((opportunity) =&gt; opportunity.status !== &quot;not_eligible&quot;);
+  const total = pursuable.reduce((sum, opportunity) =&gt; sum + opportunity.estimatedIncentive, 0);
   const [display, setDisplay] = useState(0);
+  const [expanded, setExpanded] = useState(false);
   const shouldReduceMotion = useReducedMotion();
   const { play } = useGreenlightAudio();
   const playedDiscovery = useRef(false);
@@ -2342,16 +2922,16 @@ export function ValueFoundHero({ total, opportunityCount }: { total: number; opp
 
   useEffect(() =&gt; {
     if (shouldReduceMotion) return;
-    const duration = 900;
+    const duration = 780;
     const start = performance.now();
-    let raf: number;
+    let frame: number;
     const tick = (now: number) =&gt; {
       const progress = Math.min(1, (now - start) / duration);
-      setDisplay(Math.round(total * progress));
-      if (progress &lt; 1) raf = requestAnimationFrame(tick);
+      setDisplay(Math.round(total * (1 - Math.pow(1 - progress, 3))));
+      if (progress &lt; 1) frame = requestAnimationFrame(tick);
     };
-    raf = requestAnimationFrame(tick);
-    return () =&gt; cancelAnimationFrame(raf);
+    frame = requestAnimationFrame(tick);
+    return () =&gt; cancelAnimationFrame(frame);
   }, [total, shouldReduceMotion]);
 
   useEffect(() =&gt; {
@@ -2362,29 +2942,51 @@ export function ValueFoundHero({ total, opportunityCount }: { total: number; opp
 
   return (
     &lt;motion.div
-      className=&quot;relative overflow-hidden rounded-2xl bg-card border border-line p-8 text-center&quot;
-      animate={
-        shouldReduceMotion
-          ? undefined
-          : { boxShadow: isComplete ? &quot;0 18px 50px rgba(31, 122, 77, 0.13)&quot; : &quot;0 0 0 rgba(31, 122, 77, 0)&quot; }
-      }
+      className=&quot;relative overflow-hidden rounded-2xl border border-line bg-card p-6 sm:p-8&quot;
+      animate={shouldReduceMotion ? undefined : { boxShadow: isComplete ? &quot;0 22px 60px rgba(31, 122, 77, 0.13)&quot; : &quot;0 0 0 rgba(31, 122, 77, 0)&quot; }}
       transition={{ duration: motionTokens.duration.slow, ease: motionTokens.easeOut }}
     &gt;
       &lt;motion.div
-        className=&quot;pointer-events-none absolute inset-x-10 -top-16 h-32 rounded-full bg-success-soft blur-2xl&quot;
+        className=&quot;pointer-events-none absolute inset-x-8 -top-16 h-32 rounded-full bg-success-soft blur-2xl&quot;
         initial={false}
-        animate={{ opacity: isComplete ? 0.85 : 0 }}
+        animate={{ opacity: isComplete ? 0.82 : 0 }}
         transition={{ duration: shouldReduceMotion ? 0 : motionTokens.duration.slow }}
         aria-hidden=&quot;true&quot;
       /&gt;
-      &lt;p className=&quot;text-[13px] text-ink-muted mb-2&quot;&gt;We found&lt;/p&gt;
-      &lt;p className=&quot;relative text-5xl sm:text-6xl font-medium tabular-nums text-success tracking-tight&quot;&gt;
+      &lt;p className=&quot;relative text-[12px] font-medium text-brand&quot;&gt;After deterministic eligibility checks&lt;/p&gt;
+      &lt;p className=&quot;relative mt-2 text-5xl font-semibold tracking-[-0.055em] text-success tabular-nums sm:text-6xl&quot;&gt;
         ${visibleValue.toLocaleString(&quot;en-CA&quot;)}
       &lt;/p&gt;
-      &lt;p className=&quot;text-[14px] text-ink-soft mt-2&quot;&gt;potential value found&lt;/p&gt;
-      &lt;p className=&quot;text-[13px] text-ink-muted mt-4&quot;&gt;
-        {opportunityCount} opportunities appear worth pursuing
+      &lt;p className=&quot;relative mt-1 text-[15px] font-medium text-ink&quot;&gt;worth pursuing.&lt;/p&gt;
+      &lt;p className=&quot;relative mt-3 text-[12px] leading-relaxed text-ink-muted&quot;&gt;
+        Potential incentive value across {pursuable.length} opportunities. Estimates remain subject to verification.
       &lt;/p&gt;
+      &lt;button
+        type=&quot;button&quot;
+        onClick={() =&gt; setExpanded((value) =&gt; !value)}
+        className=&quot;relative mt-5 flex w-full items-center justify-between border-t border-line pt-4 text-left text-[12px] font-semibold text-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand&quot;
+        aria-expanded={expanded}
+      &gt;
+        Where does ${total.toLocaleString(&quot;en-CA&quot;)} come from?
+        &lt;ChevronDown size={16} className={`transition-transform ${expanded ? &quot;rotate-180&quot; : &quot;&quot;}`} aria-hidden=&quot;true&quot; /&gt;
+      &lt;/button&gt;
+      &lt;AnimatePresence initial={false}&gt;
+        {expanded &amp;&amp; (
+          &lt;motion.dl
+            initial={shouldReduceMotion ? false : { opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: &quot;auto&quot; }}
+            exit={{ opacity: 0, height: 0 }}
+            className=&quot;mt-3 space-y-2 overflow-hidden&quot;
+          &gt;
+            {pursuable.map((opportunity) =&gt; (
+              &lt;div key={opportunity.id} className=&quot;flex items-start justify-between gap-4 text-[12px]&quot;&gt;
+                &lt;dt className=&quot;text-ink-soft&quot;&gt;{opportunity.title}&lt;/dt&gt;
+                &lt;dd className=&quot;shrink-0 font-semibold tabular-nums&quot;&gt;${opportunity.estimatedIncentive.toLocaleString(&quot;en-CA&quot;)}&lt;/dd&gt;
+              &lt;/div&gt;
+            ))}
+          &lt;/motion.dl&gt;
+        )}
+      &lt;/AnimatePresence&gt;
     &lt;/motion.div&gt;
   );
 }
@@ -2568,7 +3170,7 @@ export function useGreenlightAudio() {
 </code></pre>
     </details>
 <details class="source" data-search="uxui/lib/adapters/demo-provider.ts" >
-      <summary><span>uxui/lib/adapters/demo-provider.ts</span><small>200 lines</small></summary>
+      <summary><span>uxui/lib/adapters/demo-provider.ts</span><small>196 lines</small></summary>
       <pre><code>import { DEMO_BILL, DEMO_HOUSEHOLD, INCENTIVE_PROGRAMS } from &quot;@/lib/data/fixtures&quot;;
 import {
   AgentCase,
@@ -2578,10 +3180,10 @@ import {
   HouseholdProfile,
   IncentiveProgram,
   Opportunity,
-  Tenure,
   UtilityBillExtraction,
 } from &quot;@/lib/types&quot;;
 import { estimateOpportunityEconomics } from &quot;@/lib/calculations/payback&quot;;
+import { applyTenureScenario } from &quot;@/lib/experience&quot;;
 
 // Deterministic demo-mode implementation of the analysis -&gt; matching -&gt; agent
 // pipeline described in the brief. Every step here stands in for a Gemini call;
@@ -2678,26 +3280,11 @@ export function matchOpportunities(household: HouseholdProfile): Opportunity[] {
 
 export function resolveTenureAnswer(
   household: HouseholdProfile,
-  tenure: Tenure,
+  tenure: &quot;owner&quot; | &quot;renter&quot;,
   opportunities: Opportunity[]
 ): { household: HouseholdProfile; opportunities: Opportunity[] } {
   const updatedHousehold = { ...household, tenure, profileConfidence: 0.91 };
-  const updatedOpportunities = opportunities.map((o) =&gt; {
-    if (!o.unresolvedQuestions.includes(&quot;Do you own or rent this property?&quot;)) return o;
-    const evidence = o.evidence.map((e) =&gt;
-      e.criterion === &quot;Homeowner status&quot;
-        ? { ...e, observedValue: tenure, status: (tenure === &quot;owner&quot; ? &quot;pass&quot; : &quot;fail&quot;) as EligibilityEvidence[&quot;status&quot;] }
-        : e
-    );
-    const hasFail = evidence.some((e) =&gt; e.status === &quot;fail&quot;);
-    return {
-      ...o,
-      evidence,
-      status: hasFail ? &quot;not_eligible&quot; : (&quot;ready_to_pursue&quot; as Opportunity[&quot;status&quot;]),
-      eligibilityConfidence: hasFail ? 0.12 : 0.94,
-      unresolvedQuestions: [],
-    };
-  });
+  const updatedOpportunities = applyTenureScenario(opportunities, tenure);
   return { household: updatedHousehold, opportunities: updatedOpportunities };
 }
 
@@ -2706,41 +3293,49 @@ export function buildAgentCase(opportunity: Opportunity, household: HouseholdPro
   const needsHuman = opportunity.unresolvedQuestions.length &gt; 0;
 
   const events: AgentEvent[] = [
-    { id: &quot;e1&quot;, sequence: 1, group: &quot;Program verification&quot;, title: &quot;Current program requirements loaded&quot;, status: &quot;complete&quot; },
-    { id: &quot;e2&quot;, sequence: 2, group: &quot;Household matching&quot;, title: &quot;Province matches&quot;, status: &quot;complete&quot; },
-    { id: &quot;e3&quot;, sequence: 3, group: &quot;Household matching&quot;, title: &quot;Utility type matches&quot;, status: &quot;complete&quot; },
+    { id: &quot;e1&quot;, sequence: 1, group: &quot;Program verification&quot;, title: &quot;Current program requirements loaded&quot;, status: &quot;complete&quot;, detail: `Verified from ${program.actionRoute.sourceTitle ?? &quot;the official program source&quot;}.` },
+    { id: &quot;e2&quot;, sequence: 2, group: &quot;Household matching&quot;, title: &quot;Province matches&quot;, status: &quot;complete&quot;, detail: `${household.provinceState} satisfies the program jurisdiction rule.` },
+    { id: &quot;e3&quot;, sequence: 3, group: &quot;Household matching&quot;, title: &quot;Energy profile checked&quot;, status: &quot;complete&quot;, detail: `${household.primaryHeating.replace(&quot;_&quot;, &quot; &quot;)} heating was compared with the structured program requirements.` },
     {
       id: &quot;e4&quot;,
       sequence: 4,
       group: &quot;Household matching&quot;,
       title: &quot;Homeowner status&quot;,
       status: needsHuman ? &quot;needs_human&quot; : &quot;complete&quot;,
-      detail: needsHuman ? &quot;Unresolved&quot; : undefined,
+      detail: needsHuman ? &quot;The bill cannot establish property tenure. Greenlight refuses to guess.&quot; : `${household.tenure} was confirmed by the user.`,
     },
-    { id: &quot;e5&quot;, sequence: 5, group: &quot;Contact resolution&quot;, title: &quot;Program administrator identified&quot;, status: &quot;complete&quot; },
-    { id: &quot;e6&quot;, sequence: 6, group: &quot;Contact resolution&quot;, title: &quot;Correct action channel determined&quot;, status: &quot;complete&quot; },
+    { id: &quot;e5&quot;, sequence: 5, group: &quot;Contact resolution&quot;, title: &quot;Program administrator identified&quot;, status: &quot;complete&quot;, detail: program.actionRoute.administeringOrganization },
+    { id: &quot;e6&quot;, sequence: 6, group: &quot;Contact resolution&quot;, title: &quot;Correct action channel determined&quot;, status: &quot;complete&quot;, detail: program.actionRoute.preferredSubmissionMethod ?? program.actionRoute.routeType.replace(&quot;_&quot;, &quot; &quot;) },
     {
       id: &quot;e7&quot;,
       sequence: 7,
       group: &quot;Contact resolution&quot;,
       title: &quot;Official contact verified&quot;,
       status: program.actionRoute.verified ? &quot;complete&quot; : &quot;blocked&quot;,
+      detail: program.actionRoute.verified ? `Verified ${program.actionRoute.lastVerifiedAt}.` : &quot;No verified destination is available.&quot;,
     },
-    { id: &quot;e8&quot;, sequence: 8, group: &quot;Documentation&quot;, title: &quot;Utility bill attached&quot;, status: &quot;complete&quot; },
-    { id: &quot;e9&quot;, sequence: 9, group: &quot;Documentation&quot;, title: &quot;Provider extracted&quot;, status: &quot;complete&quot; },
+    { id: &quot;e8&quot;, sequence: 8, group: &quot;Documentation&quot;, title: &quot;Utility bill attached&quot;, status: &quot;complete&quot;, detail: &quot;The supporting bill is linked to the application packet.&quot; },
+    { id: &quot;e9&quot;, sequence: 9, group: &quot;Documentation&quot;, title: &quot;Provider extracted&quot;, status: &quot;complete&quot;, detail: household.utilityProvider ?? &quot;Provider was not available.&quot; },
     {
       id: &quot;e10&quot;,
       sequence: 10,
       group: &quot;Application&quot;,
       title: &quot;Application fields prepared&quot;,
       status: needsHuman ? &quot;needs_human&quot; : &quot;complete&quot;,
+      detail: needsHuman ? &quot;Preparation pauses at the missing tenure fact.&quot; : &quot;Known fields populated with provenance retained.&quot;,
     },
   ];
 
   const applicationFields: ApplicationField[] = [
+    { key: &quot;address&quot;, label: &quot;Service address&quot;, value: `${household.city ?? &quot;&quot;}, ${household.provinceState}`, source: &quot;extracted&quot;, requiresUserConfirmation: false },
     { key: &quot;provider&quot;, label: &quot;Utility provider&quot;, value: household.utilityProvider ?? &quot;&quot;, source: &quot;extracted&quot;, requiresUserConfirmation: false },
     { key: &quot;province&quot;, label: &quot;Province&quot;, value: household.provinceState, source: &quot;extracted&quot;, requiresUserConfirmation: false },
+    { key: &quot;account&quot;, label: &quot;Account type&quot;, value: &quot;Residential&quot;, source: &quot;extracted&quot;, requiresUserConfirmation: false },
     { key: &quot;dwelling&quot;, label: &quot;Dwelling type&quot;, value: household.dwellingType, source: &quot;extracted&quot;, requiresUserConfirmation: false },
+    { key: &quot;program&quot;, label: &quot;Selected program&quot;, value: program.name, source: &quot;confirmed&quot;, requiresUserConfirmation: false },
+    { key: &quot;heating&quot;, label: &quot;Primary heating&quot;, value: household.primaryHeating.replace(&quot;_&quot;, &quot; &quot;), source: &quot;calculated&quot;, requiresUserConfirmation: false },
+    { key: &quot;usage&quot;, label: &quot;Annualized gas usage&quot;, value: household.annualNaturalGasM3 ? `${household.annualNaturalGasM3.toLocaleString(&quot;en-CA&quot;)} m³` : &quot;&quot;, source: household.annualNaturalGasM3 ? &quot;calculated&quot; : &quot;missing&quot;, requiresUserConfirmation: false },
+    { key: &quot;bill&quot;, label: &quot;Supporting utility bill&quot;, value: &quot;Attached&quot;, source: &quot;extracted&quot;, requiresUserConfirmation: false },
     {
       key: &quot;tenure&quot;,
       label: &quot;Homeowner status&quot;,
@@ -2748,6 +3343,9 @@ export function buildAgentCase(opportunity: Opportunity, household: HouseholdPro
       source: household.tenure === &quot;unknown&quot; ? &quot;missing&quot; : &quot;confirmed&quot;,
       requiresUserConfirmation: household.tenure === &quot;unknown&quot;,
     },
+    { key: &quot;equipment&quot;, label: &quot;Equipment details&quot;, value: &quot;&quot;, source: &quot;missing&quot;, requiresUserConfirmation: true },
+    { key: &quot;signature&quot;, label: &quot;Applicant certification&quot;, value: &quot;&quot;, source: &quot;declaration&quot;, requiresUserConfirmation: true },
+    { key: &quot;approval&quot;, label: &quot;Submission approval&quot;, value: &quot;&quot;, source: &quot;declaration&quot;, requiresUserConfirmation: true },
   ];
 
   const progress = needsHuman ? 0.65 : 0.9;
@@ -3448,8 +4046,9 @@ export function playSound(name: SoundName, opts: { gainScale?: number } = {}): v
 </code></pre>
     </details>
 <details class="source" data-search="uxui/lib/calculations/constraint-solver.ts" >
-      <summary><span>uxui/lib/calculations/constraint-solver.ts</span><small>67 lines</small></summary>
+      <summary><span>uxui/lib/calculations/constraint-solver.ts</span><small>73 lines</small></summary>
       <pre><code>import { NegotiatedPlan, NegotiatedPlanItem, Opportunity, UserGoal } from &quot;@/lib/types&quot;;
+import { rankOpportunities } from &quot;@/lib/experience&quot;;
 
 // Deterministic greedy optimizer: ranks opportunities by value-per-dollar-of-upfront-
 // cost and adds them until the budget ceiling would be exceeded. Intentionally simple
@@ -3459,11 +4058,7 @@ export function buildNegotiatedPlan(
   goal: UserGoal | null
 ): NegotiatedPlan {
   const eligible = opportunities.filter((o) =&gt; o.status !== &quot;not_eligible&quot;);
-  const ranked = [...eligible].sort((a, b) =&gt; {
-    const scoreA = (a.estimatedIncentive + a.estimatedAnnualSavings) / Math.max(1, a.estimatedUpfrontCost);
-    const scoreB = (b.estimatedIncentive + b.estimatedAnnualSavings) / Math.max(1, b.estimatedUpfrontCost);
-    return scoreB - scoreA;
-  });
+  const ranked = rankOpportunities(eligible, goal?.objective ?? &quot;max_value&quot;);
 
   const budgetCeiling = goal?.maxUpfrontCost ?? null;
   const items: NegotiatedPlanItem[] = [];
@@ -3507,9 +4102,18 @@ export function parseGoalPrompt(raw: string): UserGoal {
   const upfrontMatch = raw.match(/(?:less than|under|max(?:imum)?|no more than)\s*\$?(\d[\d,]*)/i);
   const savingsMatch = raw.match(/save\s*(?:me\s*)?\$?(\d[\d,]*)/i);
 
+  const normalized = raw.toLowerCase();
+  const objective = normalized.includes(&quot;upfront&quot;) || normalized.includes(&quot;budget&quot;) || normalized.includes(&quot;under&quot;)
+    ? &quot;min_upfront&quot;
+    : normalized.includes(&quot;everything&quot;) || normalized.includes(&quot;every rebate&quot;)
+      ? &quot;all_eligible&quot;
+      : normalized.includes(&quot;long-term&quot;) || normalized.includes(&quot;five-year&quot;) || normalized.includes(&quot;annual savings&quot;)
+        ? &quot;long_term_savings&quot;
+        : &quot;max_value&quot;;
+
   return {
     rawPrompt: raw,
-    objective: &quot;maximize_annual_savings&quot;,
+    objective,
     maxUpfrontCost: upfrontMatch ? Number(upfrontMatch[1].replace(/,/g, &quot;&quot;)) : null,
     minimumAnnualSavings: savingsMatch ? Number(savingsMatch[1].replace(/,/g, &quot;&quot;)) : null,
     jurisdiction: &quot;ON&quot;,
@@ -3686,12 +4290,22 @@ export function co2ReductionKgForCategory(category: string): number {
 </code></pre>
     </details>
 <details class="source" data-search="uxui/lib/context/greenlight-context.tsx" >
-      <summary><span>uxui/lib/context/greenlight-context.tsx</span><small>123 lines</small></summary>
+      <summary><span>uxui/lib/context/greenlight-context.tsx</span><small>201 lines</small></summary>
       <pre><code>&quot;use client&quot;;
 
 import React, { createContext, useContext, useEffect, useState } from &quot;react&quot;;
-import { AgentCase, HouseholdProfile, Opportunity, UserGoal, UtilityBillExtraction } from &quot;@/lib/types&quot;;
+import {
+  AgentCase,
+  HouseholdProfile,
+  OptimizationObjective,
+  Opportunity,
+  ScenarioOverride,
+  TenureDecisionDelta,
+  UserGoal,
+  UtilityBillExtraction,
+} from &quot;@/lib/types&quot;;
 import { analyzeBillDemo, buildAgentCase, buildHouseholdProfile, matchOpportunities, resolveTenureAnswer } from &quot;@/lib/adapters/demo-provider&quot;;
+import { rankOpportunities } from &quot;@/lib/experience&quot;;
 
 interface SessionState {
   bills: UtilityBillExtraction[];
@@ -3699,19 +4313,38 @@ interface SessionState {
   opportunities: Opportunity[];
   cases: Record&lt;string, AgentCase&gt;;
   goal: UserGoal | null;
+  objective: OptimizationObjective | null;
+  scenario: ScenarioOverride;
+  lastTenureDelta: TenureDecisionDelta | null;
+  presentationMode: boolean;
   isLive: boolean;
 }
 
-const EMPTY_SESSION: SessionState = { bills: [], household: null, opportunities: [], cases: {}, goal: null, isLive: false };
+const EMPTY_SESSION: SessionState = {
+  bills: [],
+  household: null,
+  opportunities: [],
+  cases: {},
+  goal: null,
+  objective: null,
+  scenario: {},
+  lastTenureDelta: null,
+  presentationMode: false,
+  isLive: false,
+};
 
 interface GreenlightState extends SessionState {
   hydrated: boolean;
-  startDemo: () =&gt; void;
-  startFromAnalysis: (bills: UtilityBillExtraction[], household: HouseholdProfile, opportunities: Opportunity[], live: boolean) =&gt; void;
+  startDemo: (objective: OptimizationObjective) =&gt; void;
+  startFromAnalysis: (bills: UtilityBillExtraction[], household: HouseholdProfile, opportunities: Opportunity[], live: boolean, objective: OptimizationObjective) =&gt; void;
   answerTenure: (tenure: &quot;owner&quot; | &quot;renter&quot;) =&gt; void;
   getOrCreateCase: (opportunityId: string) =&gt; AgentCase | null;
   setGoal: (goal: UserGoal | null) =&gt; void;
-  reset: () =&gt; void;
+  setObjective: (objective: OptimizationObjective) =&gt; void;
+  setScenario: (scenario: ScenarioOverride) =&gt; void;
+  clearScenario: () =&gt; void;
+  setPresentationMode: (active: boolean) =&gt; void;
+  reset: (preservePresentation?: boolean) =&gt; void;
 }
 
 const GreenlightContext = createContext&lt;GreenlightState | null&gt;(null);
@@ -3758,21 +4391,51 @@ export function GreenlightProvider({ children }: { children: React.ReactNode }) 
     }
   }, [hydrated, session]);
 
-  const startDemo = () =&gt; {
+  const startDemo = (objective: OptimizationObjective) =&gt; {
     const b = analyzeBillDemo();
     const h = buildHouseholdProfile();
-    setSession({ bills: [b], household: h, opportunities: matchOpportunities(h), cases: {}, goal: null, isLive: false });
+    setSession((previous) =&gt; ({
+      bills: [b],
+      household: h,
+      opportunities: rankOpportunities(matchOpportunities(h), objective),
+      cases: {},
+      goal: null,
+      objective,
+      scenario: {},
+      lastTenureDelta: null,
+      presentationMode: previous.presentationMode,
+      isLive: false,
+    }));
   };
 
-  const startFromAnalysis = (bills: UtilityBillExtraction[], h: HouseholdProfile, opps: Opportunity[], live: boolean) =&gt; {
-    setSession({ bills, household: h, opportunities: opps, cases: {}, goal: null, isLive: live });
+  const startFromAnalysis = (bills: UtilityBillExtraction[], h: HouseholdProfile, opps: Opportunity[], live: boolean, objective: OptimizationObjective) =&gt; {
+    setSession((previous) =&gt; ({
+      bills,
+      household: h,
+      opportunities: rankOpportunities(opps, objective),
+      cases: {},
+      goal: null,
+      objective,
+      scenario: {},
+      lastTenureDelta: null,
+      presentationMode: previous.presentationMode,
+      isLive: live,
+    }));
   };
 
   const answerTenure = (tenure: &quot;owner&quot; | &quot;renter&quot;) =&gt; {
     setSession((prev) =&gt; {
       if (!prev.household) return prev;
       const { household: h, opportunities: opps } = resolveTenureAnswer(prev.household, tenure, prev.opportunities);
-      return { ...prev, household: h, opportunities: opps, cases: {} };
+      const newlyReady = opps.filter((opportunity, index) =&gt; opportunity.status === &quot;ready_to_pursue&quot; &amp;&amp; prev.opportunities[index]?.status !== &quot;ready_to_pursue&quot;).length;
+      const newlyBlocked = opps.filter((opportunity, index) =&gt; opportunity.status === &quot;not_eligible&quot; &amp;&amp; prev.opportunities[index]?.status !== &quot;not_eligible&quot;).length;
+      return {
+        ...prev,
+        household: h,
+        opportunities: rankOpportunities(opps, prev.objective),
+        cases: {},
+        lastTenureDelta: { from: prev.household.tenure, to: tenure, newlyReady, newlyBlocked },
+      };
     });
   };
 
@@ -3787,9 +4450,15 @@ export function GreenlightProvider({ children }: { children: React.ReactNode }) 
   };
 
   const setGoal = (g: UserGoal | null) =&gt; setSession((prev) =&gt; ({ ...prev, goal: g }));
+  const setObjective = (objective: OptimizationObjective) =&gt; {
+    setSession((prev) =&gt; ({ ...prev, objective, opportunities: rankOpportunities(prev.opportunities, objective) }));
+  };
+  const setScenario = (scenario: ScenarioOverride) =&gt; setSession((prev) =&gt; ({ ...prev, scenario }));
+  const clearScenario = () =&gt; setSession((prev) =&gt; ({ ...prev, scenario: {} }));
+  const setPresentationMode = (active: boolean) =&gt; setSession((prev) =&gt; ({ ...prev, presentationMode: active }));
 
-  const reset = () =&gt; {
-    setSession(EMPTY_SESSION);
+  const reset = (preservePresentation = false) =&gt; {
+    setSession((previous) =&gt; ({ ...EMPTY_SESSION, presentationMode: preservePresentation &amp;&amp; previous.presentationMode }));
     try {
       window.sessionStorage.removeItem(STORAGE_KEY);
     } catch {
@@ -3799,7 +4468,20 @@ export function GreenlightProvider({ children }: { children: React.ReactNode }) 
 
   // Not memoized: every field here closes over `session`/`hydrated`, which
   // are already the trigger for any re-render that would need a new value.
-  const value: GreenlightState = { ...session, hydrated, startDemo, startFromAnalysis, answerTenure, getOrCreateCase, setGoal, reset };
+  const value: GreenlightState = {
+    ...session,
+    hydrated,
+    startDemo,
+    startFromAnalysis,
+    answerTenure,
+    getOrCreateCase,
+    setGoal,
+    setObjective,
+    setScenario,
+    clearScenario,
+    setPresentationMode,
+    reset,
+  };
 
   return &lt;GreenlightContext.Provider value={value}&gt;{children}&lt;/GreenlightContext.Provider&gt;;
 }
@@ -4057,6 +4739,131 @@ export const INCENTIVE_PROGRAMS: IncentiveProgram[] = [
 ];
 </code></pre>
     </details>
+<details class="source" data-search="uxui/lib/experience.ts" >
+      <summary><span>uxui/lib/experience.ts</span><small>122 lines</small></summary>
+      <pre><code>import type {
+  EligibilityEvidence,
+  OptimizationObjective,
+  Opportunity,
+  ProgramFilterSummary,
+  ScenarioOverride,
+} from &quot;@/lib/types&quot;;
+
+export const OBJECTIVES: Array&lt;{
+  id: OptimizationObjective;
+  label: string;
+  detail: string;
+}&gt; = [
+  { id: &quot;max_value&quot;, label: &quot;Find the most money&quot;, detail: &quot;Lead with the largest verified incentive value.&quot; },
+  { id: &quot;min_upfront&quot;, label: &quot;Spend as little upfront as possible&quot;, detail: &quot;Prioritize the lowest net cost to act.&quot; },
+  { id: &quot;all_eligible&quot;, label: &quot;Show me everything worth pursuing&quot;, detail: &quot;Keep breadth ahead of a single recommendation.&quot; },
+  { id: &quot;long_term_savings&quot;, label: &quot;Maximize long-term savings&quot;, detail: &quot;Prioritize estimated annual savings over rebate size.&quot; },
+];
+
+export function objectiveLabel(objective: OptimizationObjective | null): string {
+  return OBJECTIVES.find((item) =&gt; item.id === objective)?.label ?? &quot;Show me everything worth pursuing&quot;;
+}
+
+function netUpfront(opportunity: Opportunity): number {
+  return Math.max(0, opportunity.estimatedUpfrontCost - opportunity.estimatedIncentive);
+}
+
+export function rankOpportunities(
+  opportunities: Opportunity[],
+  objective: OptimizationObjective | null,
+): Opportunity[] {
+  return [...opportunities].sort((a, b) =&gt; {
+    if (a.status === &quot;not_eligible&quot; &amp;&amp; b.status !== &quot;not_eligible&quot;) return 1;
+    if (b.status === &quot;not_eligible&quot; &amp;&amp; a.status !== &quot;not_eligible&quot;) return -1;
+
+    if (objective === &quot;min_upfront&quot;) {
+      return netUpfront(a) - netUpfront(b) || b.estimatedIncentive - a.estimatedIncentive;
+    }
+    if (objective === &quot;long_term_savings&quot;) {
+      return b.estimatedAnnualSavings - a.estimatedAnnualSavings || b.estimatedIncentive - a.estimatedIncentive;
+    }
+    if (objective === &quot;all_eligible&quot;) {
+      const statusWeight = { ready_to_pursue: 0, needs_answers: 1, not_eligible: 2 } as const;
+      return statusWeight[a.status] - statusWeight[b.status] || b.estimatedIncentive - a.estimatedIncentive;
+    }
+    return (
+      b.estimatedIncentive + b.estimatedAnnualSavings -
+      (a.estimatedIncentive + a.estimatedAnnualSavings)
+    );
+  });
+}
+
+export function deriveProgramFilterSummary(opportunities: Opportunity[]): ProgramFilterSummary {
+  const summary: ProgramFilterSummary = {
+    considered: opportunities.length,
+    excludedJurisdiction: 0,
+    excludedProvider: 0,
+    excludedHousehold: 0,
+    unresolved: 0,
+    matched: 0,
+  };
+
+  opportunities.forEach((opportunity) =&gt; {
+    if (opportunity.status === &quot;needs_answers&quot;) {
+      summary.unresolved += 1;
+      return;
+    }
+    if (opportunity.status !== &quot;not_eligible&quot;) {
+      summary.matched += 1;
+      return;
+    }
+
+    const failed = opportunity.evidence.filter((item) =&gt; item.status === &quot;fail&quot;);
+    if (failed.some((item) =&gt; item.criterion.toLowerCase().includes(&quot;region&quot;))) {
+      summary.excludedJurisdiction += 1;
+    } else if (failed.some((item) =&gt; item.criterion.toLowerCase().includes(&quot;provider&quot;))) {
+      summary.excludedProvider += 1;
+    } else {
+      summary.excludedHousehold += 1;
+    }
+  });
+
+  return summary;
+}
+
+export function scenarioDescription(scenario: ScenarioOverride): string {
+  if (scenario.tenure === &quot;renter&quot;) return &quot;If this household rents&quot;;
+  if (scenario.tenure === &quot;owner&quot;) return &quot;If this household owns&quot;;
+  if (scenario.maxUpfrontCost != null) return `With a $${scenario.maxUpfrontCost.toLocaleString(&quot;en-CA&quot;)} upfront limit`;
+  if (scenario.objective) return objectiveLabel(scenario.objective);
+  return &quot;Current household&quot;;
+}
+
+export function applyTenureScenario(
+  opportunities: Opportunity[],
+  tenure: &quot;owner&quot; | &quot;renter&quot;,
+): Opportunity[] {
+  return opportunities.map((opportunity) =&gt; {
+    const hasTenureCriterion = opportunity.evidence.some((item) =&gt; item.criterion === &quot;Homeowner status&quot;);
+    if (!hasTenureCriterion) return { ...opportunity, evidence: [...opportunity.evidence] };
+
+    const evidence = opportunity.evidence.map((item) =&gt;
+      item.criterion === &quot;Homeowner status&quot;
+        ? {
+            ...item,
+            observedValue: tenure,
+            status: (tenure === &quot;owner&quot; ? &quot;pass&quot; : &quot;fail&quot;) as EligibilityEvidence[&quot;status&quot;],
+          }
+        : { ...item },
+    );
+    const hasFail = evidence.some((item) =&gt; item.status === &quot;fail&quot;);
+    const hasUnknown = evidence.some((item) =&gt; item.status === &quot;unknown&quot;);
+    return {
+      ...opportunity,
+      evidence,
+      status: hasFail ? &quot;not_eligible&quot; : hasUnknown ? &quot;needs_answers&quot; : &quot;ready_to_pursue&quot;,
+      eligibilityConfidence: hasFail ? 0.12 : hasUnknown ? 0.78 : 0.94,
+      unresolvedQuestions: opportunity.unresolvedQuestions.filter((question) =&gt; question !== &quot;Do you own or rent this property?&quot;),
+    };
+  });
+}
+</code></pre>
+    </details>
 <details class="source" data-search="uxui/lib/motion/tokens.ts" >
       <summary><span>uxui/lib/motion/tokens.ts</span><small>16 lines</small></summary>
       <pre><code>// Centralized motion constants — components should reference these rather
@@ -4107,7 +4914,7 @@ export function useFinePointer(): boolean {
 </code></pre>
     </details>
 <details class="source" data-search="uxui/lib/types.ts" >
-      <summary><span>uxui/lib/types.ts</span><small>201 lines</small></summary>
+      <summary><span>uxui/lib/types.ts</span><small>229 lines</small></summary>
       <pre><code>// Core domain types for Greenlight, following the build brief's data model
 // (sections 47-57). Trimmed to what the P0 demo path actually needs.
 
@@ -4120,6 +4927,34 @@ export type HeatingType =
   | &quot;unknown&quot;;
 
 export type Tenure = &quot;owner&quot; | &quot;renter&quot; | &quot;unknown&quot;;
+
+export type OptimizationObjective =
+  | &quot;max_value&quot;
+  | &quot;min_upfront&quot;
+  | &quot;all_eligible&quot;
+  | &quot;long_term_savings&quot;;
+
+export interface ScenarioOverride {
+  tenure?: &quot;owner&quot; | &quot;renter&quot;;
+  maxUpfrontCost?: number;
+  objective?: OptimizationObjective;
+}
+
+export interface ProgramFilterSummary {
+  considered: number;
+  excludedJurisdiction: number;
+  excludedProvider: number;
+  excludedHousehold: number;
+  unresolved: number;
+  matched: number;
+}
+
+export interface TenureDecisionDelta {
+  from: Tenure;
+  to: &quot;owner&quot; | &quot;renter&quot;;
+  newlyReady: number;
+  newlyBlocked: number;
+}
 
 export interface UtilityBillExtraction {
   provider: string | null;
@@ -4268,7 +5103,7 @@ export interface ApplicationField {
   key: string;
   label: string;
   value: string;
-  source: &quot;extracted&quot; | &quot;confirmed&quot; | &quot;missing&quot;;
+  source: &quot;extracted&quot; | &quot;confirmed&quot; | &quot;calculated&quot; | &quot;missing&quot; | &quot;declaration&quot;;
   requiresUserConfirmation: boolean;
 }
 
@@ -4285,7 +5120,7 @@ export interface AgentCase {
 
 export interface UserGoal {
   rawPrompt: string;
-  objective: string;
+  objective: OptimizationObjective;
   maxUpfrontCost: number | null;
   minimumAnnualSavings: number | null;
   jurisdiction: string;

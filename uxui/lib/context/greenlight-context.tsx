@@ -1,8 +1,18 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { AgentCase, HouseholdProfile, Opportunity, UserGoal, UtilityBillExtraction } from "@/lib/types";
+import {
+  AgentCase,
+  HouseholdProfile,
+  OptimizationObjective,
+  Opportunity,
+  ScenarioOverride,
+  TenureDecisionDelta,
+  UserGoal,
+  UtilityBillExtraction,
+} from "@/lib/types";
 import { analyzeBillDemo, buildAgentCase, buildHouseholdProfile, matchOpportunities, resolveTenureAnswer } from "@/lib/adapters/demo-provider";
+import { rankOpportunities } from "@/lib/experience";
 
 interface SessionState {
   bills: UtilityBillExtraction[];
@@ -10,19 +20,38 @@ interface SessionState {
   opportunities: Opportunity[];
   cases: Record<string, AgentCase>;
   goal: UserGoal | null;
+  objective: OptimizationObjective | null;
+  scenario: ScenarioOverride;
+  lastTenureDelta: TenureDecisionDelta | null;
+  presentationMode: boolean;
   isLive: boolean;
 }
 
-const EMPTY_SESSION: SessionState = { bills: [], household: null, opportunities: [], cases: {}, goal: null, isLive: false };
+const EMPTY_SESSION: SessionState = {
+  bills: [],
+  household: null,
+  opportunities: [],
+  cases: {},
+  goal: null,
+  objective: null,
+  scenario: {},
+  lastTenureDelta: null,
+  presentationMode: false,
+  isLive: false,
+};
 
 interface GreenlightState extends SessionState {
   hydrated: boolean;
-  startDemo: () => void;
-  startFromAnalysis: (bills: UtilityBillExtraction[], household: HouseholdProfile, opportunities: Opportunity[], live: boolean) => void;
+  startDemo: (objective: OptimizationObjective) => void;
+  startFromAnalysis: (bills: UtilityBillExtraction[], household: HouseholdProfile, opportunities: Opportunity[], live: boolean, objective: OptimizationObjective) => void;
   answerTenure: (tenure: "owner" | "renter") => void;
   getOrCreateCase: (opportunityId: string) => AgentCase | null;
   setGoal: (goal: UserGoal | null) => void;
-  reset: () => void;
+  setObjective: (objective: OptimizationObjective) => void;
+  setScenario: (scenario: ScenarioOverride) => void;
+  clearScenario: () => void;
+  setPresentationMode: (active: boolean) => void;
+  reset: (preservePresentation?: boolean) => void;
 }
 
 const GreenlightContext = createContext<GreenlightState | null>(null);
@@ -69,21 +98,51 @@ export function GreenlightProvider({ children }: { children: React.ReactNode }) 
     }
   }, [hydrated, session]);
 
-  const startDemo = () => {
+  const startDemo = (objective: OptimizationObjective) => {
     const b = analyzeBillDemo();
     const h = buildHouseholdProfile();
-    setSession({ bills: [b], household: h, opportunities: matchOpportunities(h), cases: {}, goal: null, isLive: false });
+    setSession((previous) => ({
+      bills: [b],
+      household: h,
+      opportunities: rankOpportunities(matchOpportunities(h), objective),
+      cases: {},
+      goal: null,
+      objective,
+      scenario: {},
+      lastTenureDelta: null,
+      presentationMode: previous.presentationMode,
+      isLive: false,
+    }));
   };
 
-  const startFromAnalysis = (bills: UtilityBillExtraction[], h: HouseholdProfile, opps: Opportunity[], live: boolean) => {
-    setSession({ bills, household: h, opportunities: opps, cases: {}, goal: null, isLive: live });
+  const startFromAnalysis = (bills: UtilityBillExtraction[], h: HouseholdProfile, opps: Opportunity[], live: boolean, objective: OptimizationObjective) => {
+    setSession((previous) => ({
+      bills,
+      household: h,
+      opportunities: rankOpportunities(opps, objective),
+      cases: {},
+      goal: null,
+      objective,
+      scenario: {},
+      lastTenureDelta: null,
+      presentationMode: previous.presentationMode,
+      isLive: live,
+    }));
   };
 
   const answerTenure = (tenure: "owner" | "renter") => {
     setSession((prev) => {
       if (!prev.household) return prev;
       const { household: h, opportunities: opps } = resolveTenureAnswer(prev.household, tenure, prev.opportunities);
-      return { ...prev, household: h, opportunities: opps, cases: {} };
+      const newlyReady = opps.filter((opportunity, index) => opportunity.status === "ready_to_pursue" && prev.opportunities[index]?.status !== "ready_to_pursue").length;
+      const newlyBlocked = opps.filter((opportunity, index) => opportunity.status === "not_eligible" && prev.opportunities[index]?.status !== "not_eligible").length;
+      return {
+        ...prev,
+        household: h,
+        opportunities: rankOpportunities(opps, prev.objective),
+        cases: {},
+        lastTenureDelta: { from: prev.household.tenure, to: tenure, newlyReady, newlyBlocked },
+      };
     });
   };
 
@@ -98,9 +157,15 @@ export function GreenlightProvider({ children }: { children: React.ReactNode }) 
   };
 
   const setGoal = (g: UserGoal | null) => setSession((prev) => ({ ...prev, goal: g }));
+  const setObjective = (objective: OptimizationObjective) => {
+    setSession((prev) => ({ ...prev, objective, opportunities: rankOpportunities(prev.opportunities, objective) }));
+  };
+  const setScenario = (scenario: ScenarioOverride) => setSession((prev) => ({ ...prev, scenario }));
+  const clearScenario = () => setSession((prev) => ({ ...prev, scenario: {} }));
+  const setPresentationMode = (active: boolean) => setSession((prev) => ({ ...prev, presentationMode: active }));
 
-  const reset = () => {
-    setSession(EMPTY_SESSION);
+  const reset = (preservePresentation = false) => {
+    setSession((previous) => ({ ...EMPTY_SESSION, presentationMode: preservePresentation && previous.presentationMode }));
     try {
       window.sessionStorage.removeItem(STORAGE_KEY);
     } catch {
@@ -110,7 +175,20 @@ export function GreenlightProvider({ children }: { children: React.ReactNode }) 
 
   // Not memoized: every field here closes over `session`/`hydrated`, which
   // are already the trigger for any re-render that would need a new value.
-  const value: GreenlightState = { ...session, hydrated, startDemo, startFromAnalysis, answerTenure, getOrCreateCase, setGoal, reset };
+  const value: GreenlightState = {
+    ...session,
+    hydrated,
+    startDemo,
+    startFromAnalysis,
+    answerTenure,
+    getOrCreateCase,
+    setGoal,
+    setObjective,
+    setScenario,
+    clearScenario,
+    setPresentationMode,
+    reset,
+  };
 
   return <GreenlightContext.Provider value={value}>{children}</GreenlightContext.Provider>;
 }

@@ -11,6 +11,34 @@ export type HeatingType =
 
 export type Tenure = "owner" | "renter" | "unknown";
 
+export type OptimizationObjective =
+  | "max_value"
+  | "min_upfront"
+  | "all_eligible"
+  | "long_term_savings";
+
+export interface ScenarioOverride {
+  tenure?: "owner" | "renter";
+  maxUpfrontCost?: number;
+  objective?: OptimizationObjective;
+}
+
+export interface ProgramFilterSummary {
+  considered: number;
+  excludedJurisdiction: number;
+  excludedProvider: number;
+  excludedHousehold: number;
+  unresolved: number;
+  matched: number;
+}
+
+export interface TenureDecisionDelta {
+  from: Tenure;
+  to: "owner" | "renter";
+  newlyReady: number;
+  newlyBlocked: number;
+}
+
 export interface UtilityBillExtraction {
   provider: string | null;
   accountType: "residential" | "commercial" | "unknown";
@@ -158,7 +186,7 @@ export interface ApplicationField {
   key: string;
   label: string;
   value: string;
-  source: "extracted" | "confirmed" | "missing";
+  source: "extracted" | "confirmed" | "calculated" | "missing" | "declaration";
   requiresUserConfirmation: boolean;
 }
 
@@ -175,7 +203,7 @@ export interface AgentCase {
 
 export interface UserGoal {
   rawPrompt: string;
-  objective: string;
+  objective: OptimizationObjective;
   maxUpfrontCost: number | null;
   minimumAnnualSavings: number | null;
   jurisdiction: string;

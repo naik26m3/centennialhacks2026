@@ -27,7 +27,8 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
     <div className="flex-1 px-4 sm:px-6 py-10">
       <div className="mx-auto max-w-4xl">
         <p className="text-[13px] text-ink-muted mb-1">{program.provider}</p>
-        <h1 className="text-2xl font-medium mb-1">{opportunity.title}</h1>
+        <h1 className="max-w-2xl text-3xl font-semibold tracking-[-0.045em]">Here&apos;s why your home could unlock ${opportunity.estimatedIncentive.toLocaleString("en-CA")}.</h1>
+        <p className="mb-2 mt-2 text-[14px] font-semibold text-brand">{opportunity.title}</p>
         <p className="text-[14px] text-ink-soft mb-6 max-w-xl">{program.description}</p>
 
         <div className="grid lg:grid-cols-[1fr_280px] gap-6">
@@ -52,9 +53,9 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
             <SourceBadge url={program.officialUrl} label={program.actionRoute.sourceTitle ?? "Official program page"} verifiedAt={program.lastVerifiedAt} />
           </div>
 
-          <div className="order-1 lg:order-2 flex flex-col gap-3">
-            <div className="rounded-lg border border-line bg-card p-4">
-              <p className="text-[13px] text-ink-muted mb-1">Next step</p>
+          <div className="order-1 flex flex-col gap-3 lg:order-2">
+            <div className="sticky top-20 rounded-xl border border-brand/25 bg-card p-4 shadow-[0_16px_38px_rgba(31,92,63,0.10)]">
+              <p className="text-[13px] text-ink-muted mb-1">Do not leave this trapped in paperwork</p>
               <p className="text-[14px] font-medium mb-3">
                 {opportunity.status === "needs_answers" ? "Needs 1 answer" : "Program application"}
               </p>
@@ -62,7 +63,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                 onClick={() => router.push(`/agent/${opportunity.id}`)}
                 className="w-full rounded-lg bg-ink text-white text-[14px] font-medium py-2.5 hover:bg-ink/90 transition-colors"
               >
-                Get it for me
+                Turn this into an application
               </TactileButton>
             </div>
           </div>

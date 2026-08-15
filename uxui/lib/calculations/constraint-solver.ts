@@ -1,4 +1,5 @@
 import { NegotiatedPlan, NegotiatedPlanItem, Opportunity, UserGoal } from "@/lib/types";
+import { rankOpportunities } from "@/lib/experience";
 
 // Deterministic greedy optimizer: ranks opportunities by value-per-dollar-of-upfront-
 // cost and adds them until the budget ceiling would be exceeded. Intentionally simple
@@ -8,11 +9,7 @@ export function buildNegotiatedPlan(
   goal: UserGoal | null
 ): NegotiatedPlan {
   const eligible = opportunities.filter((o) => o.status !== "not_eligible");
-  const ranked = [...eligible].sort((a, b) => {
-    const scoreA = (a.estimatedIncentive + a.estimatedAnnualSavings) / Math.max(1, a.estimatedUpfrontCost);
-    const scoreB = (b.estimatedIncentive + b.estimatedAnnualSavings) / Math.max(1, b.estimatedUpfrontCost);
-    return scoreB - scoreA;
-  });
+  const ranked = rankOpportunities(eligible, goal?.objective ?? "max_value");
 
   const budgetCeiling = goal?.maxUpfrontCost ?? null;
   const items: NegotiatedPlanItem[] = [];
@@ -56,9 +53,18 @@ export function parseGoalPrompt(raw: string): UserGoal {
   const upfrontMatch = raw.match(/(?:less than|under|max(?:imum)?|no more than)\s*\$?(\d[\d,]*)/i);
   const savingsMatch = raw.match(/save\s*(?:me\s*)?\$?(\d[\d,]*)/i);
 
+  const normalized = raw.toLowerCase();
+  const objective = normalized.includes("upfront") || normalized.includes("budget") || normalized.includes("under")
+    ? "min_upfront"
+    : normalized.includes("everything") || normalized.includes("every rebate")
+      ? "all_eligible"
+      : normalized.includes("long-term") || normalized.includes("five-year") || normalized.includes("annual savings")
+        ? "long_term_savings"
+        : "max_value";
+
   return {
     rawPrompt: raw,
-    objective: "maximize_annual_savings",
+    objective,
     maxUpfrontCost: upfrontMatch ? Number(upfrontMatch[1].replace(/,/g, "")) : null,
     minimumAnnualSavings: savingsMatch ? Number(savingsMatch[1].replace(/,/g, "")) : null,
     jurisdiction: "ON",

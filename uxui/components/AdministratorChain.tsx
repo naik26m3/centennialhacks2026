@@ -29,6 +29,7 @@ export function AdministratorChain({ route }: { route: ActionRoute }) {
 
   return (
     <div className="rounded-lg border border-line bg-card p-4">
+      <p className="mb-4 text-[13px] font-semibold">Let&apos;s find who actually owns this.</p>
       <ul className="flex flex-col">
         {steps.map((step, index) => {
           const isVerified = "verified" in step && step.verified;
@@ -60,7 +61,7 @@ export function AdministratorChain({ route }: { route: ActionRoute }) {
                 }`}
                 aria-hidden="true"
               />
-              <p className="text-[11px] text-ink-muted uppercase tracking-wide">{step.label}</p>
+              <p className="text-[11px] font-medium text-ink-muted">{step.label}</p>
               <p className="text-[14px] font-medium">{step.value}</p>
             </motion.li>
           );

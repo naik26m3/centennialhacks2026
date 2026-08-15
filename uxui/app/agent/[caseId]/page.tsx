@@ -7,7 +7,9 @@ import { useGreenlight } from "@/lib/context/greenlight-context";
 import { AgentTimeline } from "@/components/AgentTimeline";
 import { AdministratorChain } from "@/components/AdministratorChain";
 import { ApplicationPacket } from "@/components/ApplicationPacket";
+import { DemoResolution } from "@/components/DemoResolution";
 import { DemoModeBadge } from "@/components/DemoModeBadge";
+import { EligibilityDelta } from "@/components/EligibilityDelta";
 import { CinematicReveal } from "@/components/motion/CinematicReveal";
 import { TactileButton } from "@/components/motion/TactileButton";
 import { useGreenlightAudio } from "@/hooks/useGreenlightAudio";
@@ -16,10 +18,12 @@ import { motionTokens } from "@/lib/motion/tokens";
 export default function AgentCasePage({ params }: { params: Promise<{ caseId: string }> }) {
   const { caseId } = use(params);
   const router = useRouter();
-  const { household, opportunities, cases, hydrated, isLive, getOrCreateCase, answerTenure } = useGreenlight();
+  const { household, opportunities, cases, lastTenureDelta, presentationMode, hydrated, isLive, getOrCreateCase, answerTenure } = useGreenlight();
   const { play } = useGreenlightAudio();
   const shouldReduceMotion = useReducedMotion();
   const [copied, setCopied] = useState(false);
+  const [questionVisible, setQuestionVisible] = useState(false);
+  const [approved, setApproved] = useState(false);
   const playedAttention = useRef(false);
   const playedComplete = useRef(false);
 
@@ -37,19 +41,22 @@ export default function AgentCasePage({ params }: { params: Promise<{ caseId: st
   const needsHuman = agentCase?.status === "awaiting_human";
 
   useEffect(() => {
+    if (!needsHuman) return;
+    const timer = window.setTimeout(() => setQuestionVisible(true), shouldReduceMotion ? 80 : 960);
+    return () => window.clearTimeout(timer);
+  }, [needsHuman, shouldReduceMotion]);
+
+  useEffect(() => {
     if (!needsHuman || playedAttention.current) return;
     playedAttention.current = true;
     play("attention");
   }, [needsHuman, play]);
 
   useEffect(() => {
-    if (!agentCase || needsHuman || playedComplete.current) return;
-    const timer = window.setTimeout(() => {
-      playedComplete.current = true;
-      play("complete");
-    }, shouldReduceMotion ? 0 : 900);
-    return () => window.clearTimeout(timer);
-  }, [agentCase, needsHuman, play, shouldReduceMotion]);
+    if (!approved || playedComplete.current) return;
+    playedComplete.current = true;
+    play("complete");
+  }, [approved, play]);
 
   if (!household || !opportunity || !agentCase) return null;
 
@@ -60,12 +67,12 @@ export default function AgentCasePage({ params }: { params: Promise<{ caseId: st
           <p className="text-[13px] text-ink-muted">Turning eligibility into action</p>
           <DemoModeBadge live={isLive} />
         </div>
-        <h1 className="text-2xl font-medium mb-6">Do not let the paperwork cost you this opportunity</h1>
+        <h1 className="text-2xl font-medium mb-6">Greenlight is handling it.</h1>
 
         <div className="grid lg:grid-cols-[1fr_320px] gap-6">
           <div className="order-2 lg:order-1">
             <motion.div
-              animate={{ opacity: needsHuman ? 0.68 : 1 }}
+              animate={{ opacity: needsHuman && questionVisible ? 0.48 : 1 }}
               transition={{ duration: shouldReduceMotion ? 0 : motionTokens.duration.slow, ease: motionTokens.easeOut }}
             >
               <AgentTimeline events={agentCase.events} />
@@ -73,7 +80,7 @@ export default function AgentCasePage({ params }: { params: Promise<{ caseId: st
           </div>
 
           <div className="order-1 lg:order-2 flex flex-col gap-4">
-            {needsHuman && (
+            {needsHuman && questionVisible && (
               <CinematicReveal>
                 <div className="rounded-lg border border-warning bg-warning-soft p-4 shadow-[0_14px_34px_rgba(156,107,11,0.10)]">
                   <p className="text-[13px] font-medium mb-3">Do you own or rent this property?</p>
@@ -97,6 +104,7 @@ export default function AgentCasePage({ params }: { params: Promise<{ caseId: st
 
             {!needsHuman && (
               <>
+                {lastTenureDelta && <EligibilityDelta delta={lastTenureDelta} />}
                 <AdministratorChain route={agentCase.actionRoute!} />
                 <ApplicationPacket fields={agentCase.applicationFields} />
 
@@ -121,7 +129,7 @@ export default function AgentCasePage({ params }: { params: Promise<{ caseId: st
                         >
                           {copied ? "Copied" : "Copy"}
                         </TactileButton>
-                        <TactileButton className="flex-1 rounded-lg bg-ink text-white text-[13px] font-medium py-2 hover:bg-ink/90">
+                        <TactileButton onClick={() => setApproved(true)} className="flex-1 rounded-lg bg-ink text-white text-[13px] font-medium py-2 hover:bg-ink/90">
                           Approve
                         </TactileButton>
                       </div>
@@ -134,17 +142,18 @@ export default function AgentCasePage({ params }: { params: Promise<{ caseId: st
                       <p className="text-[13px] text-ink-soft mb-3">
                         This program doesn&apos;t require an email. Applications are submitted through the official program portal.
                       </p>
-                      <a
-                        href={agentCase.actionRoute?.applicationUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block text-center rounded-lg bg-ink text-white text-[13px] font-medium py-2 hover:bg-ink/90"
-                      >
-                        Continue application
-                      </a>
+                      <div className="flex flex-col gap-2">
+                        <TactileButton onClick={() => setApproved(true)} className="w-full rounded-lg bg-ink py-2 text-[13px] font-medium text-white hover:bg-ink/90">
+                          Review prepared application
+                        </TactileButton>
+                        <a href={agentCase.actionRoute?.applicationUrl} target="_blank" rel="noopener noreferrer" onClick={(event) => { if (presentationMode) { event.preventDefault(); setApproved(true); } }} className="block rounded-lg border border-line-strong py-2 text-center text-[12px] font-medium hover:bg-canvas">
+                          Open official portal
+                        </a>
+                      </div>
                     </div>
                   </CinematicReveal>
                 )}
+                {approved && <DemoResolution opportunity={opportunity} agentCase={agentCase} />}
               </>
             )}
           </div>

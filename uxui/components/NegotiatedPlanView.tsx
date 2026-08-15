@@ -1,7 +1,12 @@
+"use client";
+
+import { motion, useReducedMotion } from "framer-motion";
 import { NegotiatedPlan } from "@/lib/types";
 import { Metric } from "@/components/Metric";
+import { motionTokens } from "@/lib/motion/tokens";
 
 export function NegotiatedPlanView({ plan }: { plan: NegotiatedPlan }) {
+  const shouldReduceMotion = useReducedMotion();
   if (plan.items.length === 0) {
     return (
       <div className="rounded-lg border border-line bg-card p-4 text-[13px] text-ink-soft">
@@ -13,15 +18,22 @@ export function NegotiatedPlanView({ plan }: { plan: NegotiatedPlan }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-lg border border-line bg-card divide-y divide-line">
-        {plan.items.map((item) => (
-          <div key={item.opportunityId} className="p-4">
+        {plan.items.map((item, index) => (
+          <motion.div
+            layout={!shouldReduceMotion}
+            key={item.opportunityId}
+            initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: motionTokens.duration.standard, delay: shouldReduceMotion ? 0 : index * 0.06 }}
+            className="p-4"
+          >
             <p className="text-[14px] font-medium">{item.title}</p>
             <div className="flex gap-4 mt-1 text-[13px] text-ink-soft tabular-nums">
               <span>Net upfront ${item.upfrontCost.toLocaleString("en-CA")}</span>
               <span>Incentive ${item.incentive.toLocaleString("en-CA")}</span>
               <span>Savings ${item.annualSavings.toLocaleString("en-CA")}/yr</span>
             </div>
-          </div>
+          </motion.div>
         ))}
       </div>
 

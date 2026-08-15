@@ -5,12 +5,12 @@ import { useRouter } from "next/navigation";
 import { useGreenlight } from "@/lib/context/greenlight-context";
 import { ValueFoundHero } from "@/components/ValueFoundHero";
 import { OpportunityRow } from "@/components/OpportunityRow";
-import { Metric } from "@/components/Metric";
 import { DemoModeBadge } from "@/components/DemoModeBadge";
+import { objectiveLabel } from "@/lib/experience";
 
 export default function OpportunitiesPage() {
   const router = useRouter();
-  const { bills, household, opportunities, hydrated, isLive } = useGreenlight();
+  const { bills, household, opportunities, objective, hydrated, isLive } = useGreenlight();
 
   useEffect(() => {
     if (hydrated && (bills.length === 0 || !household)) router.replace("/");
@@ -18,33 +18,25 @@ export default function OpportunitiesPage() {
 
   if (bills.length === 0 || !household) return null;
 
-  const pursuable = opportunities.filter((o) => o.status !== "not_eligible");
-  const total = pursuable.reduce((sum, o) => sum + o.estimatedIncentive, 0);
-
   return (
     <div className="flex-1 px-4 sm:px-6 py-10">
       <div className="mx-auto max-w-5xl">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-xl font-medium">Money your home may be missing</h1>
+          <div><h1 className="text-2xl font-semibold tracking-[-0.035em]">Money your home may be missing</h1><p className="mt-1 text-[12px] text-ink-muted">Ranked for: {objectiveLabel(objective)}</p></div>
           <DemoModeBadge live={isLive} />
         </div>
 
         <div className="grid lg:grid-cols-[1fr_320px] gap-6">
           <div className="flex flex-col gap-6 order-2 lg:order-1">
-            <div className="lg:hidden">
-              <ValueFoundHero total={total} opportunityCount={pursuable.length} />
-            </div>
             <div className="flex flex-col gap-3">
-              {opportunities.map((o) => (
-                <OpportunityRow key={o.id} opportunity={o} />
+              {opportunities.map((o, index) => (
+                <OpportunityRow key={o.id} opportunity={o} recommended={index === 0 && o.status !== "not_eligible"} />
               ))}
             </div>
           </div>
 
           <div className="flex flex-col gap-4 order-1 lg:order-2">
-            <div className="hidden lg:block">
-              <ValueFoundHero total={total} opportunityCount={pursuable.length} />
-            </div>
+            <ValueFoundHero opportunities={opportunities} />
             <div className="rounded-lg border border-line bg-card p-4">
               <p className="text-[13px] font-medium mb-3">Household</p>
               <dl className="flex flex-col gap-2 text-[13px]">
@@ -85,7 +77,7 @@ export default function OpportunitiesPage() {
                 </p>
               )}
             </div>
-            <Metric label="Programs tracked" value={String(opportunities.length)} />
+            <div className="rounded-xl border border-line bg-brand-soft/55 p-4"><p className="text-[12px] font-semibold text-brand">The trust boundary</p><p className="mt-1 text-[12px] leading-relaxed text-ink-soft">AI interprets the bill and program language. Deterministic TypeScript owns eligibility checks, ranking, and every dollar shown.</p></div>
           </div>
         </div>
       </div>

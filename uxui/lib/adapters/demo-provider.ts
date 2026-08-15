@@ -7,10 +7,10 @@ import {
   HouseholdProfile,
   IncentiveProgram,
   Opportunity,
-  Tenure,
   UtilityBillExtraction,
 } from "@/lib/types";
 import { estimateOpportunityEconomics } from "@/lib/calculations/payback";
+import { applyTenureScenario } from "@/lib/experience";
 
 // Deterministic demo-mode implementation of the analysis -> matching -> agent
 // pipeline described in the brief. Every step here stands in for a Gemini call;
@@ -107,26 +107,11 @@ export function matchOpportunities(household: HouseholdProfile): Opportunity[] {
 
 export function resolveTenureAnswer(
   household: HouseholdProfile,
-  tenure: Tenure,
+  tenure: "owner" | "renter",
   opportunities: Opportunity[]
 ): { household: HouseholdProfile; opportunities: Opportunity[] } {
   const updatedHousehold = { ...household, tenure, profileConfidence: 0.91 };
-  const updatedOpportunities = opportunities.map((o) => {
-    if (!o.unresolvedQuestions.includes("Do you own or rent this property?")) return o;
-    const evidence = o.evidence.map((e) =>
-      e.criterion === "Homeowner status"
-        ? { ...e, observedValue: tenure, status: (tenure === "owner" ? "pass" : "fail") as EligibilityEvidence["status"] }
-        : e
-    );
-    const hasFail = evidence.some((e) => e.status === "fail");
-    return {
-      ...o,
-      evidence,
-      status: hasFail ? "not_eligible" : ("ready_to_pursue" as Opportunity["status"]),
-      eligibilityConfidence: hasFail ? 0.12 : 0.94,
-      unresolvedQuestions: [],
-    };
-  });
+  const updatedOpportunities = applyTenureScenario(opportunities, tenure);
   return { household: updatedHousehold, opportunities: updatedOpportunities };
 }
 
@@ -135,41 +120,49 @@ export function buildAgentCase(opportunity: Opportunity, household: HouseholdPro
   const needsHuman = opportunity.unresolvedQuestions.length > 0;
 
   const events: AgentEvent[] = [
-    { id: "e1", sequence: 1, group: "Program verification", title: "Current program requirements loaded", status: "complete" },
-    { id: "e2", sequence: 2, group: "Household matching", title: "Province matches", status: "complete" },
-    { id: "e3", sequence: 3, group: "Household matching", title: "Utility type matches", status: "complete" },
+    { id: "e1", sequence: 1, group: "Program verification", title: "Current program requirements loaded", status: "complete", detail: `Verified from ${program.actionRoute.sourceTitle ?? "the official program source"}.` },
+    { id: "e2", sequence: 2, group: "Household matching", title: "Province matches", status: "complete", detail: `${household.provinceState} satisfies the program jurisdiction rule.` },
+    { id: "e3", sequence: 3, group: "Household matching", title: "Energy profile checked", status: "complete", detail: `${household.primaryHeating.replace("_", " ")} heating was compared with the structured program requirements.` },
     {
       id: "e4",
       sequence: 4,
       group: "Household matching",
       title: "Homeowner status",
       status: needsHuman ? "needs_human" : "complete",
-      detail: needsHuman ? "Unresolved" : undefined,
+      detail: needsHuman ? "The bill cannot establish property tenure. Greenlight refuses to guess." : `${household.tenure} was confirmed by the user.`,
     },
-    { id: "e5", sequence: 5, group: "Contact resolution", title: "Program administrator identified", status: "complete" },
-    { id: "e6", sequence: 6, group: "Contact resolution", title: "Correct action channel determined", status: "complete" },
+    { id: "e5", sequence: 5, group: "Contact resolution", title: "Program administrator identified", status: "complete", detail: program.actionRoute.administeringOrganization },
+    { id: "e6", sequence: 6, group: "Contact resolution", title: "Correct action channel determined", status: "complete", detail: program.actionRoute.preferredSubmissionMethod ?? program.actionRoute.routeType.replace("_", " ") },
     {
       id: "e7",
       sequence: 7,
       group: "Contact resolution",
       title: "Official contact verified",
       status: program.actionRoute.verified ? "complete" : "blocked",
+      detail: program.actionRoute.verified ? `Verified ${program.actionRoute.lastVerifiedAt}.` : "No verified destination is available.",
     },
-    { id: "e8", sequence: 8, group: "Documentation", title: "Utility bill attached", status: "complete" },
-    { id: "e9", sequence: 9, group: "Documentation", title: "Provider extracted", status: "complete" },
+    { id: "e8", sequence: 8, group: "Documentation", title: "Utility bill attached", status: "complete", detail: "The supporting bill is linked to the application packet." },
+    { id: "e9", sequence: 9, group: "Documentation", title: "Provider extracted", status: "complete", detail: household.utilityProvider ?? "Provider was not available." },
     {
       id: "e10",
       sequence: 10,
       group: "Application",
       title: "Application fields prepared",
       status: needsHuman ? "needs_human" : "complete",
+      detail: needsHuman ? "Preparation pauses at the missing tenure fact." : "Known fields populated with provenance retained.",
     },
   ];
 
   const applicationFields: ApplicationField[] = [
+    { key: "address", label: "Service address", value: `${household.city ?? ""}, ${household.provinceState}`, source: "extracted", requiresUserConfirmation: false },
     { key: "provider", label: "Utility provider", value: household.utilityProvider ?? "", source: "extracted", requiresUserConfirmation: false },
     { key: "province", label: "Province", value: household.provinceState, source: "extracted", requiresUserConfirmation: false },
+    { key: "account", label: "Account type", value: "Residential", source: "extracted", requiresUserConfirmation: false },
     { key: "dwelling", label: "Dwelling type", value: household.dwellingType, source: "extracted", requiresUserConfirmation: false },
+    { key: "program", label: "Selected program", value: program.name, source: "confirmed", requiresUserConfirmation: false },
+    { key: "heating", label: "Primary heating", value: household.primaryHeating.replace("_", " "), source: "calculated", requiresUserConfirmation: false },
+    { key: "usage", label: "Annualized gas usage", value: household.annualNaturalGasM3 ? `${household.annualNaturalGasM3.toLocaleString("en-CA")} m³` : "", source: household.annualNaturalGasM3 ? "calculated" : "missing", requiresUserConfirmation: false },
+    { key: "bill", label: "Supporting utility bill", value: "Attached", source: "extracted", requiresUserConfirmation: false },
     {
       key: "tenure",
       label: "Homeowner status",
@@ -177,6 +170,9 @@ export function buildAgentCase(opportunity: Opportunity, household: HouseholdPro
       source: household.tenure === "unknown" ? "missing" : "confirmed",
       requiresUserConfirmation: household.tenure === "unknown",
     },
+    { key: "equipment", label: "Equipment details", value: "", source: "missing", requiresUserConfirmation: true },
+    { key: "signature", label: "Applicant certification", value: "", source: "declaration", requiresUserConfirmation: true },
+    { key: "approval", label: "Submission approval", value: "", source: "declaration", requiresUserConfirmation: true },
   ];
 
   const progress = needsHuman ? 0.65 : 0.9;
