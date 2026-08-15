@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+:root {
+  --canvas: #faf9f5;
+  --ink: #17171a;
+  --ink-soft: #55544d;
+  --ink-muted: #8a897f;
+  --line: #e7e4da;
+  --line-strong: #d3d0c3;
+  --card: #ffffff;
+  --brand: #1f5c3f;
+  --brand-soft: #e7f0ea;
+  --success: #1f7a4d;
+  --success-soft: #e7f3ea;
+  --warning: #9c6b0b;
+  --warning-soft: #fbf1dc;
+  --danger: #b23a34;
+  --danger-soft: #fbeae8;
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-muted: var(--ink-muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-card: var(--card);
+  --color-brand: var(--brand);
+  --color-brand-soft: var(--brand-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", monospace;
+}
+
+body {
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: "Avenir Next", "Helvetica Neue", var(--font-sans);
+}
+
+::selection {
+  background: rgba(31, 92, 63, 0.2);
+}
+
+.hero-grain {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E");
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
