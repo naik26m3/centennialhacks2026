@@ -16,7 +16,7 @@ their slice, commits only that scope, and then marks it available.
 | `app/api/documents/[documentId]/analyze/**` | document-pipeline Luna agent | complete — available |
 | `app/api/documents/[documentId]/fields/**`, `lib/documents/**`, `tests/documents.test.ts` | field-review Luna agent | active |
 | `app/api/opportunities/**`, `app/api/actions/**`, `lib/actions/**`, `tests/actions.test.ts` | action-safety Luna agent | active |
-| `app/api/cases/[id]/answers/**`, `lib/evaluation/**`, `tests/evaluation.test.ts` | evaluation-orchestration Luna agent | active |
+| `app/api/cases/[id]/answers/**`, `app/api/cases/[id]/evaluate/**`, `lib/evaluation/**`, `tests/evaluation.test.ts` | evaluation-trigger Luna agent | active |
 | `db/seeds/003_program_registry.sql`, `tests/program-registry.test.ts` | program-registry Luna agent | active |
 | `app/api/uploads/[documentId]/complete/**`, `tests/upload-complete.test.ts` | upload-completion Luna agent | active |
 | `scripts/full-pipeline-smoke.ts` | coordinating agent | active |
