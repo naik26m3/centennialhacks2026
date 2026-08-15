@@ -8,15 +8,24 @@ export type IngestionOutcome =
   | ({ sourceId: string; status: "ok" } & Awaited<ReturnType<typeof ingestProgramSource>>)
   | { sourceId: string; status: "failed"; errorName: string };
 
+export function embeddingEnabled(args: readonly string[] = process.argv.slice(2)): boolean {
+  return args.includes("--embed");
+}
+
 export async function ingestSources(
   database: Parameters<typeof ingestProgramSource>[0],
   sources: readonly ProgramOfficialSource[],
   ingest: typeof ingestProgramSource = (database, source) => ingestProgramSource(database, source, { embed: false }),
+  options: { embed?: boolean } = {},
 ): Promise<IngestionOutcome[]> {
   const outcomes: IngestionOutcome[] = [];
   for (const source of sources) {
     try {
-      outcomes.push({ sourceId: source.id, status: "ok", ...(await ingest(database, source)) });
+      outcomes.push({
+        sourceId: source.id,
+        status: "ok",
+        ...(await ingest(database, source, { embed: options.embed === true })),
+      });
     } catch (error) {
       outcomes.push({
         sourceId: source.id,
@@ -38,7 +47,7 @@ export async function main() {
 
   const database = getDatabase();
   try {
-    const outcomes = await ingestSources(database, sources);
+    const outcomes = await ingestSources(database, sources, undefined, { embed: embeddingEnabled() });
     for (const outcome of outcomes) {
       console.log(JSON.stringify(outcome));
     }
