@@ -16,18 +16,19 @@ test("validates requests and deduplicates grounded sources", () => {
   assert.throws(() => parseReasoningRequest({ question: "x", facts: [] }), ReasoningInputError);
 
   assert.deepEqual(
-    extractGrounding({
-      webSearchQueries: ["OESP official rules"],
-      groundingChunks: [
-        { web: { uri: "https://oeb.ca/oesp", title: "OESP" } },
-        { web: { uri: "https://oeb.ca/oesp", title: "Duplicate" } },
-      ],
-      searchEntryPoint: { renderedContent: "<div>Search results</div>" },
-    }),
+    extractGrounding([
+      {
+        type: "source",
+        sourceType: "url",
+        id: "oesp-1",
+        url: "https://oeb.ca/oesp",
+        title: "OESP",
+      },
+    ]),
     {
-      queries: ["OESP official rules"],
-      sources: [{ title: "OESP", url: "https://oeb.ca/oesp" }],
-      searchEntryPointHtml: "<div>Search results</div>",
+      queries: [],
+      sources: [{ title: "OESP", url: "https://oeb.ca/oesp", reviewed: false }],
+      searchEntryPointHtml: null,
     },
   );
 });

@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import {
   parseReasoningRequest,
   ReasoningInputError,
-  researchWithGemini,
+  researchWithOpenRouter,
 } from "@/lib/reasoning";
 
 export const runtime = "nodejs";
@@ -13,7 +13,7 @@ export async function POST(request: Request) {
 
   try {
     const input = parseReasoningRequest(await request.json());
-    const data = await researchWithGemini(input);
+    const data = await researchWithOpenRouter(input);
     return Response.json({ data, error: null, requestId });
   } catch (error) {
     if (error instanceof ReasoningInputError) {
