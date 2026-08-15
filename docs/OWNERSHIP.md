@@ -5,12 +5,14 @@ their slice, commits only that scope, and then marks it available.
 
 | Scope | Owner | Status |
 |---|---|---|
-| `app/api/**`, `lib/reasoning/**`, `tests/reasoning.test.ts` | backend/reasoning agent | active |
+| `app/api/health/**`, `app/api/reason/**`, `lib/reasoning/**`, `tests/reasoning.test.ts` | backend/reasoning agent | complete — available |
 | `lib/eligibility/**`, `lib/financial/**`, `tests/engines.test.ts` | deterministic-engine agent | active |
 | `db/**` | database agent | active |
 | `data/legal-sources.json`, `lib/ingestion/**`, `tests/ingestion.test.ts` | backend/RAG agent | complete — available |
 | `infra/aws/**` | AWS infrastructure agent | complete — available |
-| `lib/ocr/**` | OCR teammate | reserved |
+| `scripts/ingest-legal-sources.ts`, `tests/ingest-script.test.ts` | embedding-ingestion Luna agent | active |
+| `lib/ocr/**`, `scripts/ocr-smoke.ts`, `tests/ocr.test.ts` | Gemini OCR Luna agent | active — user reassigned for this slice |
+| `app/api/documents/**`, `lib/documents/**`, `tests/documents.test.ts` | document-pipeline Luna agent | active |
 | `uxui/**` | Codex audio, copy, and Claude review handoff | complete — available |
 | `scripts/build-claude-review.mjs`, `GREENLIGHT_CLAUDE_REVIEW.html` | Codex Claude review handoff | complete — available |
 | `README.md`, `docs/PRD.md` | documentation cleanup agent | complete — available |
