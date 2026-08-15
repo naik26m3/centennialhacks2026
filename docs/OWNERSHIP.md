@@ -21,6 +21,7 @@ their slice, commits only that scope, and then marks it available.
 | `app/api/uploads/[documentId]/complete/**`, `tests/upload-complete.test.ts` | upload-completion Luna agent | active |
 | `scripts/full-pipeline-smoke.ts` | coordinating agent | active |
 | `app/api/analyze/**`, `tests/analyze-route.test.ts` | coordinating backend agent | active |
+| `lib/ai/gemini.ts`, `lib/ai/schemas.ts`, `lib/adapters/live-provider.ts`, `tests/live-provider.test.ts` | coordinating backend agent | complete — available |
 | `uxui/**` | Codex final experience transformation | complete — available |
 | `scripts/build-claude-review.mjs`, `GREENLIGHT_CLAUDE_REVIEW.html` | Codex final experience dossier refresh | complete — available |
 | `README.md`, `docs/PRD.md` | documentation cleanup agent | complete — available |
