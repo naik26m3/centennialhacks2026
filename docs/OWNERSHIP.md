@@ -14,7 +14,7 @@ their slice, commits only that scope, and then marks it available.
 | `uxui/**` | Codex audio, copy, and Claude review handoff | complete — available |
 | `scripts/build-claude-review.mjs`, `GREENLIGHT_CLAUDE_REVIEW.html` | Codex Claude review handoff | complete — available |
 | `README.md`, `docs/PRD.md` | documentation cleanup agent | complete — available |
-| `docs/BACKEND_TODO.md`, `docs/OWNERSHIP.md` | backend documentation status sync | complete — available |
+| `docs/BACKEND_TODO.md`, `docs/OWNERSHIP.md`, `docs/DEPLOYMENT_RUNBOOK.md` | backend documentation status sync | complete — available |
 | root package/config, `AGENTS.md` | coordinating agent | active |
 
 Shared contracts belong in `lib/contracts/**`. Coordinate changes to those
