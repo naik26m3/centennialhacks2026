@@ -13,6 +13,7 @@ their slice, commits only that scope, and then marks it available.
 | `scripts/ingest-legal-sources.ts`, `tests/ingest-script.test.ts` | embedding-ingestion Luna agent | active |
 | `lib/ocr/**`, `scripts/ocr-smoke.ts`, `tests/ocr.test.ts` | Gemini OCR Luna agent | active — user reassigned for this slice |
 | `app/api/documents/**`, `lib/documents/**`, `tests/documents.test.ts` | document-pipeline Luna agent | active |
+| `app/api/opportunities/**`, `app/api/actions/**`, `lib/actions/**`, `tests/actions.test.ts` | action-approval Luna agent | active |
 | `uxui/**` | Codex audio, copy, and Claude review handoff | complete — available |
 | `scripts/build-claude-review.mjs`, `GREENLIGHT_CLAUDE_REVIEW.html` | Codex Claude review handoff | complete — available |
 | `README.md`, `docs/PRD.md` | documentation cleanup agent | complete — available |

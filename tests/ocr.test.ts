@@ -97,6 +97,9 @@ test("uses an explicit OpenRouter provider and keeps model evidence review-requi
     const message = (calls[0] as { messages: Array<{ content: Array<{ type: string; data?: Uint8Array }> }> }).messages[0];
     assert.equal(message.content[1]?.type, "file");
     assert.deepEqual(message.content[1]?.data, jpeg);
+    const instruction = (message.content[0] as { type: string; text?: string }).text ?? "";
+    assert.match(instruction, /exact printed provider or issuer/i);
+    assert.match(instruction, /natural-gas bills.*You used.*m³/i);
   } finally {
     if (previous.provider === undefined) delete process.env.OCR_PROVIDER; else process.env.OCR_PROVIDER = previous.provider;
     if (previous.apiKey === undefined) delete process.env.OPENROUTER_API_KEY; else process.env.OPENROUTER_API_KEY = previous.apiKey;
@@ -117,4 +120,16 @@ test("normalizes standalone OpenRouter output without Textract geometry", () => 
   assert.equal(bill.provider.evidence[0]?.source, "openrouter");
   assert.equal(bill.provider.evidence[0]?.boundingBox, undefined);
   assert.equal(bill.total.confidence, null);
+});
+
+test("normalizes gas usage when the model combines amount and unit", () => {
+  const bill = extractCanonicalBillFromOpenRouter({
+    provider: { value: "Enbridge Gas", confidence: 72, page: 1 },
+    billing_period: { value: { start: "May 27, 2026", end: "June 25, 2026" }, confidence: 80, page: 1 },
+    total: { value: "$50.71", confidence: 80, page: 1 },
+    usage: { value: { value: "61 m³", unit: null }, confidence: 80, page: 1 },
+    account_number: { value: null, confidence: null, page: null },
+  });
+  assert.deepEqual(bill.usage.value, { value: 61, unit: "m³" });
+  assert.equal(bill.provider.value, "Enbridge Gas");
 });

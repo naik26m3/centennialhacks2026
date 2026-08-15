@@ -94,7 +94,7 @@ const OPENROUTER_SCHEMA = jsonSchema<OpenRouterBillExtraction>({
   required: ["provider", "billing_period", "total", "usage", "account_number"],
   properties: {
     provider: { type: "object", additionalProperties: false, required: ["value", "confidence", "page"], properties: {
-      value: { type: ["string", "null"] }, confidence: { type: ["number", "null"] }, page: { type: ["integer", "null"] },
+      value: { type: ["string", "null"], description: "Exact printed utility issuer/provider name from the logo, masthead, contact details, website, or repeated brand text." }, confidence: { type: ["number", "null"] }, page: { type: ["integer", "null"] },
     } },
     billing_period: { type: "object", additionalProperties: false, required: ["value", "confidence", "page"], properties: {
       value: { type: ["object", "null"], additionalProperties: false, required: ["start", "end"], properties: {
@@ -105,8 +105,8 @@ const OPENROUTER_SCHEMA = jsonSchema<OpenRouterBillExtraction>({
       value: { type: ["number", "string", "null"] }, confidence: { type: ["number", "null"] }, page: { type: ["integer", "null"] },
     } },
     usage: { type: "object", additionalProperties: false, required: ["value", "confidence", "page"], properties: {
-      value: { type: ["object", "null"], additionalProperties: false, required: ["value", "unit"], properties: {
-        value: { type: ["number", "string"] }, unit: { type: ["string", "null"] },
+      value: { type: ["object", "null"], description: "Current billing-period consumption, not a meter reading, daily average, or historical chart value.", additionalProperties: false, required: ["value", "unit"], properties: {
+        value: { type: ["number", "string"], description: "Numeric current-period amount; gas bills may label this 'You used'." }, unit: { type: ["string", "null"], description: "Unit such as kWh or m³." },
       } }, confidence: { type: ["number", "null"] }, page: { type: ["integer", "null"] },
     } },
     account_number: { type: "object", additionalProperties: false, required: ["value", "confidence", "page"], properties: {
@@ -244,9 +244,11 @@ function parseMoney(value: string): number | undefined {
 }
 
 function parseUsage(value: string): Usage | undefined {
-  const match = value.replace(/,/g, "").match(/\b([0-9]+(?:\.[0-9]+)?)\s*(kWh|m3|m³|GJ|L)\b/i);
+  const normalized = value.replace(/,/g, "").replace(/\bcubic\s+met(?:er|re)s?\b|m\^3/gi, "m3");
+  const match = normalized.match(/\b([0-9]+(?:\.[0-9]+)?)\s*(kWh|m3|m³|GJ|L)(?![A-Za-z0-9])/i);
   if (!match) return undefined;
-  return { value: Number(match[1]), unit: match[2].toLowerCase() === "m3" ? "m³" : match[2] };
+  const unit = match[2].toLowerCase();
+  return { value: Number(match[1]), unit: unit === "m3" || unit === "m³" ? "m³" : unit === "kwh" ? "kWh" : unit.toUpperCase() };
 }
 
 export function maskAccountNumber(value: string): string {
@@ -321,9 +323,10 @@ export function extractCanonicalBillFromOpenRouter(result: OpenRouterBillExtract
   const total = totalValue === null || totalValue === undefined ? undefined : parseMoney(String(totalValue));
 
   const usageValue = result.usage?.value;
-  const usage = usageValue?.value === null || usageValue?.value === undefined || !usageValue?.unit
+  const usageText = usageValue?.value === null || usageValue?.value === undefined
     ? undefined
-    : parseUsage(`${usageValue.value} ${usageValue.unit}`);
+    : `${usageValue.value}${usageValue.unit ? ` ${usageValue.unit}` : ""}`;
+  const usage = usageText ? parseUsage(usageText) : undefined;
 
   const provider = typeof result.provider?.value === "string" ? result.provider.value.trim() : undefined;
   const account = typeof result.account_number?.value === "string" ? result.account_number.value : undefined;
@@ -367,7 +370,7 @@ export async function analyzeBillDocument(
       messages: [{
         role: "user",
         content: [
-          { type: "text", text: "Read this utility bill. Return only fields supported by the schema. Do not guess. Include the source page when clear; otherwise use null. Account numbers are sensitive and will be masked after extraction." },
+          { type: "text", text: "Read this utility bill and return only fields supported by the schema. Do not guess; use null when a field is absent or illegible. Identify the exact printed provider or issuer from the logo, masthead, contact details, website, or repeated brand text, not from a generic service category. For usage, extract the current billing-period total, not meter readings, daily averages, or historical charts. On natural-gas bills it is often labeled 'You used' under 'How much gas did I use?' and reported in m³ or m3; on electricity or water bills use the labeled current-period kWh or m³ consumption. Include the source page when clear; otherwise use null. Account numbers are sensitive and will be masked after extraction." },
           { type: "file", mediaType: document.contentType, data: document.bytes },
         ],
       }],
