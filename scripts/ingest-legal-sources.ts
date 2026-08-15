@@ -11,7 +11,7 @@ export type IngestionOutcome =
 export async function ingestSources(
   database: Parameters<typeof ingestProgramSource>[0],
   sources: readonly ProgramOfficialSource[],
-  ingest: typeof ingestProgramSource = ingestProgramSource,
+  ingest: typeof ingestProgramSource = (database, source) => ingestProgramSource(database, source, { embed: false }),
 ): Promise<IngestionOutcome[]> {
   const outcomes: IngestionOutcome[] = [];
   for (const source of sources) {

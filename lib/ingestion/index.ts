@@ -196,7 +196,7 @@ export async function fetchOfficialSource(
       method: "GET",
       redirect: "error",
       signal: controller.signal,
-      headers: { accept: "text/html,text/plain" },
+      headers: { accept: "text/html,text/plain", "user-agent": "curl/8.0" },
     });
     assertOfficialSourceUrl(response.url || url.toString());
     if (!response.ok) throw new UntrustedSourceError(`Official source returned HTTP ${response.status}`);
@@ -273,6 +273,7 @@ export async function ingestProgramSource(
   options: {
     fetchImpl?: typeof fetch;
     embedImpl?: typeof embedTexts;
+    embed?: boolean;
     model?: string;
   } = {},
 ) {
@@ -281,10 +282,12 @@ export async function ingestProgramSource(
   }
   const fetched = await prepareSourceForStorage(source, { fetchImpl: options.fetchImpl });
   const model = options.model ?? process.env.OPENROUTER_EMBEDDING_MODEL ?? DEFAULT_EMBEDDING_MODEL;
-  const embeddings = await (options.embedImpl ?? embedTexts)(
-    fetched.chunks.map((chunk) => chunk.excerpt),
-    { model, inputType: "search_document" },
-  );
+  const embeddings = options.embed === false
+    ? undefined
+    : await (options.embedImpl ?? embedTexts)(
+        fetched.chunks.map((chunk) => chunk.excerpt),
+        { model, inputType: "search_document" },
+      );
   const query = database as unknown as IngestionDatabase;
   const versionKey = `snapshot_${fetched.contentHash.slice(0, 16)}`;
   const versions = await query`
@@ -325,8 +328,8 @@ export async function ingestProgramSource(
         retrievedAt: fetched.retrievedAt,
         contentHash: fetched.contentHash,
       },
-      embedding: embeddings[index],
-      embeddingModel: model,
+      embedding: embeddings?.[index],
+      embeddingModel: embeddings ? model : undefined,
     })),
   );
 

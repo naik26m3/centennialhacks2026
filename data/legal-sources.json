@@ -8,6 +8,14 @@
     "url": "https://oeb.ca/consumer-information-and-protection/bill-assistance-programs/ontario-electricity-support-program"
   },
   {
+    "id": "ca-on-oesp-regulation-180014",
+    "programKey": "oesp",
+    "authority": "Government of Ontario",
+    "jurisdiction": "CA-ON",
+    "title": "Ontario Electricity Support Program regulation",
+    "url": "https://www.ontario.ca/laws/regulation/180014"
+  },
+  {
     "id": "ca-on-energy-affordability-program",
     "programKey": "eap",
     "authority": "Save on Energy",

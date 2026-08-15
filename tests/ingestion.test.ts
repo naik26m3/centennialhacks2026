@@ -31,6 +31,22 @@ test("configured program sources are unique official HTML pages", async () => {
   }
 });
 
+test("manifest includes the official OESP regulation source", async () => {
+  const sources = JSON.parse(
+    await readFile(new URL("../data/legal-sources.json", import.meta.url), "utf8"),
+  ) as Array<{ id: string; programKey: string; authority: string; url: string }>;
+  const regulation = sources.find(({ id }) => id === "ca-on-oesp-regulation-180014");
+  assert.deepEqual(regulation, {
+    id: "ca-on-oesp-regulation-180014",
+    programKey: "oesp",
+    authority: "Government of Ontario",
+    jurisdiction: "CA-ON",
+    title: "Ontario Electricity Support Program regulation",
+    url: "https://www.ontario.ca/laws/regulation/180014",
+  });
+  assertOfficialSourceUrl(regulation.url);
+});
+
 test("chunking is deterministic, bounded, and overlapping", () => {
   const text = "one two three four five six seven eight nine ten eleven twelve";
   const first = chunkLegalText(text, { maxCharacters: 24, overlapCharacters: 7 });
@@ -52,6 +68,7 @@ test("embedding boundaries fail before provider or database calls", async () => 
 });
 
 test("fetches and normalizes an allowlisted official source", async () => {
+  let requestInit: RequestInit | undefined;
   const source = await prepareSourceForStorage(
     {
       id: "oesp",
@@ -61,15 +78,19 @@ test("fetches and normalizes an allowlisted official source", async () => {
       url: "https://www.oeb.ca/oesp",
     },
     {
-      fetchImpl: (async () => new Response("<h1>OESP</h1><p>Monthly credit</p>", {
-        status: 200,
-        headers: { "content-type": "text/html" },
-      })) as typeof fetch,
+      fetchImpl: (async (_input, init) => {
+        requestInit = init;
+        return new Response("<h1>OESP</h1><p>Monthly credit</p>", {
+          status: 200,
+          headers: { "content-type": "text/html" },
+        });
+      }) as typeof fetch,
     },
   );
   assert.equal(source.text, "OESP\nMonthly credit");
   assert.match(source.contentHash, /^[a-f0-9]{64}$/);
   assert.ok(source.chunks.length > 0);
+  assert.equal(new Headers(requestInit?.headers).get("user-agent"), "curl/8.0");
 });
 
 test("ingestion stores embedded chunks as pending review", async () => {
@@ -103,6 +124,46 @@ test("ingestion stores embedded chunks as pending review", async () => {
     { reviewStatus: result.reviewStatus, chunks: result.chunks },
     { reviewStatus: "pending", chunks: 1 },
   );
+});
+
+test("full-text ingestion skips embeddings and stores pending chunks", async () => {
+  let embeddingCalled = false;
+  let sourceChunksSql = "";
+  const query = async (strings: TemplateStringsArray) => {
+    const statement = strings.join("?");
+    if (statement.includes("INSERT INTO program_versions")) return [{ id: "version-id" }];
+    if (statement.includes("INSERT INTO program_sources")) return [{ id: "source-id" }];
+    sourceChunksSql = statement;
+    return [];
+  };
+  const database = Object.assign(query, {
+    begin: async <T>(callback: (transaction: typeof query) => Promise<T>) => callback(query),
+  });
+  const result = await ingestProgramSource(
+    database as never,
+    {
+      id: "oesp",
+      programKey: "oesp",
+      authority: "Ontario Energy Board",
+      jurisdiction: "CA-ON",
+      title: "OESP",
+      url: "https://www.oeb.ca/oesp",
+    },
+    {
+      embed: false,
+      embedImpl: async () => {
+        embeddingCalled = true;
+        return [];
+      },
+      fetchImpl: (async () => new Response("OESP monthly credit", {
+        headers: { "content-type": "text/plain" },
+      })) as typeof fetch,
+    },
+  );
+  assert.equal(result.reviewStatus, "pending");
+  assert.equal(embeddingCalled, false);
+  assert.match(sourceChunksSql, /INSERT INTO source_chunks/);
+  assert.doesNotMatch(sourceChunksSql, /embedding/);
 });
 
 test("full-text retrieval does not require pgvector", async () => {
