@@ -39,6 +39,61 @@ export type FieldRow = {
   critical: boolean;
 };
 
+export type FieldReviewInput = {
+  fieldId?: string;
+  fieldName?: string;
+  reviewStatus: "confirmed" | "corrected";
+  value?: unknown;
+};
+
+const FIELD_NAME_PATTERN = /^[a-z][a-z0-9_]*$/;
+
+export class FieldReviewInputError extends Error {}
+
+export function parseFieldReviewInput(body: unknown): FieldReviewInput {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw new FieldReviewInputError("Request body must be a JSON object.");
+  }
+  const input = body as Record<string, unknown>;
+  const fieldId = input.fieldId;
+  const fieldName = input.fieldName;
+  if (fieldId !== undefined && (typeof fieldId !== "string" || !UUID_PATTERN.test(fieldId))) {
+    throw new FieldReviewInputError("Field id must be a valid UUID.");
+  }
+  if (fieldName !== undefined && (typeof fieldName !== "string" || !FIELD_NAME_PATTERN.test(fieldName))) {
+    throw new FieldReviewInputError("Field name is invalid.");
+  }
+  if (fieldId === undefined && fieldName === undefined) {
+    throw new FieldReviewInputError("A field id or field name is required.");
+  }
+  if (fieldId !== undefined && fieldName !== undefined) {
+    throw new FieldReviewInputError("Provide a field id or field name, not both.");
+  }
+
+  const rawStatus = input.reviewStatus ?? input.action;
+  const reviewStatus = rawStatus === "confirmed" || rawStatus === "confirm"
+    ? "confirmed"
+    : rawStatus === "corrected" || rawStatus === "correct"
+      ? "corrected"
+      : null;
+  if (!reviewStatus) throw new FieldReviewInputError("Review status must be confirmed or corrected.");
+  if (reviewStatus === "confirmed" && input.value !== undefined) {
+    throw new FieldReviewInputError("A confirmed field cannot include a replacement value.");
+  }
+  if (reviewStatus === "corrected" && (input.value === undefined || input.value === null)) {
+    throw new FieldReviewInputError("A corrected value is required.");
+  }
+  if (reviewStatus === "corrected" && typeof input.value === "string" && input.value.trim() === "") {
+    throw new FieldReviewInputError("A corrected value cannot be blank.");
+  }
+  return {
+    ...(fieldId === undefined ? {} : { fieldId }),
+    ...(fieldName === undefined ? {} : { fieldName }),
+    reviewStatus,
+    ...(reviewStatus === "corrected" ? { value: input.value } : {}),
+  };
+}
+
 export async function findOwnedDocument(documentId: string, userId: string): Promise<DocumentRow | null> {
   const rows = await getDatabase()<DocumentRow[]>`
     SELECT d.id, d.case_id, d.object_key, d.content_type, d.byte_size, d.sha256, d.status
@@ -57,6 +112,27 @@ export async function findDocumentFields(documentId: string): Promise<FieldRow[]
     WHERE document_id = ${documentId}
     ORDER BY field_name
   `;
+}
+
+export async function updateDocumentField(
+  documentId: string,
+  userId: string,
+  input: FieldReviewInput,
+  database = getDatabase(),
+): Promise<FieldRow | null> {
+  if (!input.fieldId && !input.fieldName) throw new FieldReviewInputError("A field id or field name is required.");
+  const replacement = input.reviewStatus === "corrected" ? JSON.stringify(input.value) : null;
+  const rows = await database<FieldRow[]>`
+    UPDATE extracted_fields f
+    SET value = COALESCE(${replacement}::jsonb, f.value), review_status = ${input.reviewStatus}, updated_at = now()
+    FROM documents d JOIN cases c ON c.id = d.case_id
+    WHERE (f.id = ${input.fieldId ?? null} OR f.field_name = ${input.fieldName ?? null})
+      AND f.document_id = ${documentId}
+      AND d.id = ${documentId} AND f.document_id = d.id
+      AND c.clerk_user_id = ${userId} AND c.deleted_at IS NULL
+    RETURNING f.id, f.field_name, f.value, f.confidence, f.page_number, f.bounding_box, f.review_status, f.critical
+  `;
+  return rows[0] ?? null;
 }
 
 export function mapDocumentFields(rows: readonly FieldRow[]) {

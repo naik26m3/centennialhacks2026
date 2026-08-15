@@ -5,7 +5,10 @@ import test from "node:test";
 import {
   buildExtractedFields,
   documentNeedsReview,
+  FieldReviewInputError,
+  parseFieldReviewInput,
   parseDocumentId,
+  updateDocumentField,
   verifyObjectBytes,
 } from "../lib/documents";
 
@@ -47,4 +50,59 @@ test("object verification checks both byte length and sha256", () => {
   assert.deepEqual(verifyObjectBytes(bytes, bytes.byteLength, sha256), bytes);
   assert.throws(() => verifyObjectBytes(bytes, bytes.byteLength + 1, sha256), /size/);
   assert.throws(() => verifyObjectBytes(bytes, bytes.byteLength, "0".repeat(64)), /checksum/);
+});
+
+test("field review input accepts confirm/correct and rejects unsafe requests", () => {
+  const confirmed = parseFieldReviewInput({ fieldId: "123e4567-e89b-12d3-a456-426614174001", action: "confirm" });
+  assert.deepEqual(confirmed, {
+    fieldId: "123e4567-e89b-12d3-a456-426614174001",
+    reviewStatus: "confirmed",
+  });
+  assert.deepEqual(parseFieldReviewInput({ fieldName: "total", reviewStatus: "corrected", value: 42.5 }), {
+    fieldName: "total",
+    reviewStatus: "corrected",
+    value: 42.5,
+  });
+  assert.throws(() => parseFieldReviewInput({ fieldName: "new_field", reviewStatus: "corrected", value: "" }), FieldReviewInputError);
+  assert.throws(() => parseFieldReviewInput({ fieldName: "total", reviewStatus: "corrected" }), FieldReviewInputError);
+  assert.throws(() => parseFieldReviewInput({ fieldName: "total", reviewStatus: "confirmed", value: 42 }), FieldReviewInputError);
+  assert.throws(() => parseFieldReviewInput({ fieldName: "total", reviewStatus: "confirmed", fieldId: "123e4567-e89b-12d3-a456-426614174001" }), FieldReviewInputError);
+});
+
+test("field updates use one ownership-constrained UPDATE and never insert", async () => {
+  const statements: string[] = [];
+  const db = (async (strings: TemplateStringsArray) => {
+    const statement = strings.join(" ");
+    statements.push(statement);
+    return [{
+      id: "123e4567-e89b-12d3-a456-426614174001",
+      field_name: "total",
+      value: 42.5,
+      confidence: 72,
+      page_number: 1,
+      bounding_box: null,
+      review_status: "corrected",
+      critical: true,
+    }];
+  }) as never;
+  const updated = await updateDocumentField(
+    "123e4567-e89b-12d3-a456-426614174000",
+    "user-1",
+    { fieldName: "total", reviewStatus: "corrected", value: 42.5 },
+    db,
+  );
+  assert.equal(updated?.review_status, "corrected");
+  assert.equal(statements.length, 1);
+  assert.match(statements[0]!, /UPDATE extracted_fields/);
+  assert.doesNotMatch(statements[0]!, /INSERT INTO/);
+  assert.match(statements[0]!, /c\.clerk_user_id/);
+  assert.match(statements[0]!, /f\.document_id = d\.id/);
+
+  const emptyDb = (async () => []) as never;
+  assert.equal(await updateDocumentField(
+    "123e4567-e89b-12d3-a456-426614174000",
+    "user-1",
+    { fieldName: "does_not_exist", reviewStatus: "confirmed" },
+    emptyDb,
+  ), null);
 });
