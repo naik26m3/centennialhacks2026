@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Greenlight OCR — bill extraction</title>
+<style>
+  :root {
+    --bg: #faf9f7; --panel: #fff; --ink: #14161a; --graphite: #5b6169;
+    --line: #e6e3de; --green: #1c7a4f; --amber: #9a6a12; --red: #a33a30;
+    --code-bg: #14161a; --code-ink: #e8e6e1;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 28px 20px 64px; background: var(--bg); color: var(--ink);
+    font: 15px/1.55 ui-sans-serif, -apple-system, "Segoe UI", Inter, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  header { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  h1 { font-size: 20px; margin: 0; letter-spacing: -0.01em; }
+  .sub { color: var(--graphite); font-size: 13.5px; margin: 4px 0 22px; }
+  .badge {
+    font-size: 11px; letter-spacing: .06em; text-transform: uppercase; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 999px; padding: 3px 9px; color: var(--graphite);
+  }
+  .badge.live { color: var(--green); border-color: #bfe0cf; background: #f1f8f4; }
+
+  #drop {
+    border: 1px dashed #cfcac2; border-radius: 12px; background: var(--panel);
+    padding: 30px 20px; text-align: center; cursor: pointer; transition: border-color .15s, background .15s;
+  }
+  #drop:hover, #drop.over { border-color: var(--green); background: #f6faf7; }
+  #drop strong { display: block; font-size: 16px; margin-bottom: 3px; }
+  #drop span { color: var(--graphite); font-size: 13px; }
+  input[type=file] { display: none; }
+
+  .row { display: flex; gap: 10px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
+  button {
+    font: inherit; font-weight: 550; border-radius: 8px; padding: 9px 16px; min-height: 44px;
+    border: 1px solid var(--ink); background: var(--ink); color: #fff; cursor: pointer;
+  }
+  button.secondary { background: var(--panel); color: var(--ink); border-color: var(--line); }
+  button.small { min-height: 32px; padding: 5px 11px; font-size: 12.5px; font-weight: 500; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .file { color: var(--graphite); font-size: 13px; }
+
+  section { margin-top: 26px; }
+  .shead { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; flex-wrap: wrap; }
+  h2 { font-size: 12.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--graphite); margin: 0; font-weight: 600; }
+  .hint { color: var(--graphite); font-size: 12.5px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
+       color: var(--graphite); font-weight: 600; padding: 9px 14px; border-bottom: 1px solid var(--line); }
+  td { padding: 8px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  td.k { color: var(--graphite); white-space: nowrap; }
+  td.v { font-variant-numeric: tabular-nums; font-weight: 500; }
+  .src { font-size: 11px; color: var(--graphite); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; }
+  .muted { color: var(--graphite); font-weight: 400; }
+  .flag { color: var(--amber); } .err { color: var(--red); } .ok { color: var(--green); }
+  .need { font-size: 11.5px; color: var(--amber); display: block; margin-top: 2px; }
+  ul.flags { margin: 0; padding: 11px 14px 11px 30px; }
+
+  pre { margin: 0; padding: 14px; background: var(--code-bg); color: var(--code-ink);
+        font-size: 12.5px; line-height: 1.5; overflow-x: auto; max-height: 460px; }
+  .tabs { display: flex; gap: 6px; }
+  .tab { font-size: 12.5px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--line);
+         background: var(--panel); cursor: pointer; color: var(--graphite); min-height: 0; font-weight: 500; }
+  .tab.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .meta { font-size: 12.5px; color: var(--graphite); margin-top: 9px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } }
+  @media (max-width: 520px) { body { padding: 18px 13px 48px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Greenlight OCR</h1>
+    <span class="badge" id="mode">checking…</span>
+  </header>
+  <p class="sub">Upload a utility bill and get back the canonical <code>UtilityBill</code> contract (PRD §6.1/§6.2) — the exact object the API and reasoning layers consume.</p>
+
+  <div id="drop" tabindex="0" role="button" aria-label="Choose a utility bill to upload">
+    <strong>Drop a utility bill here</strong>
+    <span>or click to choose — PDF, PNG, JPG, WEBP · max 15 MB</span>
+  </div>
+  <input type="file" id="file" accept="application/pdf,image/*" capture="environment" />
+
+  <div class="row">
+    <button id="run" disabled>Extract</button>
+    <button id="reset" class="secondary">Clear</button>
+    <span class="file" id="filename">No file selected</span>
+  </div>
+
+  <div id="out"></div>
+</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const dropEl = $("drop"), fileEl = $("file"), runEl = $("run"), resetEl = $("reset"),
+        nameEl = $("filename"), outEl = $("out"), modeEl = $("mode");
+  let selected = null, lastResult = null, activeTab = "canonical";
+
+  fetch("/api/status").then(r => r.json()).then(s => {
+    modeEl.textContent = s.mode === "live" ? "live · " + s.model : "demo mode · fixture";
+    modeEl.classList.toggle("live", s.mode === "live");
+  }).catch(() => { modeEl.textContent = "server unreachable"; });
+
+  dropEl.onclick = () => fileEl.click();
+  dropEl.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileEl.click(); } };
+  dropEl.ondragover = e => { e.preventDefault(); dropEl.classList.add("over"); };
+  dropEl.ondragleave = () => dropEl.classList.remove("over");
+  dropEl.ondrop = e => { e.preventDefault(); dropEl.classList.remove("over"); if (e.dataTransfer.files[0]) select(e.dataTransfer.files[0]); };
+  fileEl.onchange = () => { if (fileEl.files[0]) select(fileEl.files[0]); };
+  resetEl.onclick = () => { selected = lastResult = null; fileEl.value = ""; runEl.disabled = true;
+    nameEl.textContent = "No file selected"; outEl.innerHTML = ""; };
+
+  function select(file) {
+    selected = file;
+    nameEl.textContent = `${file.name} · ${(file.size / 1024).toFixed(0)} KB · ${file.type || "unknown type"}`;
+    runEl.disabled = false; outEl.innerHTML = "";
+  }
+
+  const toBase64 = file => new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onerror = () => reject(new Error("Could not read that file"));
+    r.onload = () => resolve(String(r.result).split(",")[1]);
+    r.readAsDataURL(file);
+  });
+
+  runEl.onclick = async () => {
+    if (!selected) return;
+    runEl.disabled = true;
+    outEl.innerHTML = '<p class="hint" style="margin-top:24px">Reading document…</p>';
+    const started = performance.now();
+    try {
+      const res = await fetch("/api/ocr", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          fileName: selected.name,
+          mimeType: selected.type || "application/octet-stream",
+          dataBase64: await toBase64(selected),
+        }),
+      });
+      lastResult = await res.json();
+      render(Math.round(performance.now() - started));
+    } catch (err) {
+      outEl.innerHTML = '<p class="err" style="margin-top:24px">Request failed: ' + esc(err.message) + "</p>";
+    } finally { runEl.disabled = false; }
+  };
+
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const num = n => (n === null || n === undefined ? null : n.toLocaleString());
+
+  // Renders one ExtractedField row: value, where it came from, what still needs a human.
+  function fieldRow(label, f, fmt) {
+    if (!f) return "";
+    const shown = f.value === null || f.value === undefined
+      ? '<span class="muted">null</span>'
+      : esc(fmt ? fmt(f.value) : f.value);
+    const errs = (f.validationErrors || []).map(e => '<span class="need err">⚠ ' + esc(e) + "</span>").join("");
+    const need = f.needsConfirmation && !errs ? '<span class="need">needs confirmation</span>' : "";
+    return `<tr><td class="k">${esc(label)}</td><td class="v">${shown}${errs}${need}</td>` +
+           `<td><span class="src">${esc(f.source)}</span></td></tr>`;
+  }
+
+  function render(clientMs) {
+    const result = lastResult;
+    if (!result.ok) {
+      outEl.innerHTML = '<section><div class="shead"><h2>Extraction failed</h2></div><div class="panel"><table>' +
+        `<tr><td class="k">Reason</td><td class="v err">${esc(result.error)}</td></tr>` +
+        `<tr><td class="k">Code</td><td class="v">${esc(result.code || "unknown")}</td></tr>` +
+        "</table></div></section>";
+      return;
+    }
+
+    const c = result.canonical, m = result.meta, u = result.usage;
+    const conf = Math.round(c.extractionConfidence * 100);
+    const confClass = conf >= 85 ? "ok" : conf >= 60 ? "flag" : "err";
+    const tou = c.timeOfUse.value;
+
+    let html = `<section><div class="shead"><h2>Canonical UtilityBill</h2>
+      <span class="hint">${esc(c.documentType)} · ${esc(c.extractionVersion)}</span></div>
+      <div class="panel"><table><thead><tr><th>Field</th><th>Value</th><th>Source</th></tr></thead><tbody>` +
+      fieldRow("provider", c.provider) +
+      fieldRow("accountNumberMasked", c.accountNumberMasked) +
+      fieldRow("accountType", c.accountType) +
+      fieldRow("serviceLocation", c.serviceLocation, v => [v.city, v.provinceState, v.postalCodePrefix, v.country].filter(Boolean).join(", ") || "—") +
+      fieldRow("billingPeriodStart", c.billingPeriodStart) +
+      fieldRow("billingPeriodEnd", c.billingPeriodEnd) +
+      fieldRow("billingDays", c.billingDays) +
+      fieldRow("dueDate", c.dueDate) +
+      fieldRow("totalDueCad", c.totalDueCad, v => v.toFixed(2) + " " + c.currency) +
+      fieldRow("currentChargesCad", c.currentChargesCad, v => v.toFixed(2) + " " + c.currency) +
+      fieldRow("arrearsCad", c.arrearsCad, v => v.toFixed(2) + " " + c.currency) +
+      fieldRow("electricityUsageKwh", c.electricityUsageKwh, v => num(v) + " kWh") +
+      fieldRow("naturalGasUsageM3", c.naturalGasUsageM3, v => num(v) + " m³") +
+      fieldRow("ratePlan", c.ratePlan) +
+      fieldRow("timeOfUse", c.timeOfUse, v => `on ${num(v.onPeakKwh) ?? "—"} · mid ${num(v.midPeakKwh) ?? "—"} · off ${num(v.offPeakKwh) ?? "—"} kWh`) +
+      `<tr><td class="k">extractionConfidence</td><td class="v ${confClass}">${conf}%</td><td><span class="src">document</span></td></tr>` +
+      "</tbody></table></div></section>";
+
+    html += '<section class="grid"><div><div class="shead"><h2>Calculated in code, not by AI</h2></div><div class="panel"><table>' +
+      `<tr><td class="k">billingDays</td><td class="v">${num(u.billingDays) ?? "—"}</td></tr>` +
+      `<tr><td class="k">daily kWh</td><td class="v">${num(u.dailyElectricityKwh) ?? "—"}</td></tr>` +
+      `<tr><td class="k">annualized kWh</td><td class="v">${num(u.annualElectricityKwh) ?? "—"}</td></tr>` +
+      `<tr><td class="k">annualized m³</td><td class="v">${num(u.annualNaturalGasM3) ?? "—"}</td></tr>` +
+      `<tr><td class="k">annualized cost</td><td class="v">${num(u.annualCost) ?? "—"}</td></tr>` +
+      `<tr><td class="k">basis</td><td class="v">${esc(u.basis)}</td></tr>` +
+      "</table></div></div>";
+
+    html += '<div><div class="shead"><h2>Needs a human</h2></div><div class="panel">' +
+      (c.fieldsNeedingConfirmation.length
+        ? '<ul class="flags">' + c.fieldsNeedingConfirmation.map(f => `<li class="flag">${esc(f)}</li>`).join("") + "</ul>"
+        : '<ul class="flags"><li class="ok">Every required field resolved</li></ul>') +
+      (c.detectedHeatingClues.length
+        ? '<table><tr><td class="k">heating clues</td><td class="v">' + c.detectedHeatingClues.map(esc).join("<br>") + "</td></tr></table>"
+        : "") +
+      "</div></div></section>";
+
+    html += `<section><div class="shead"><h2>Raw JSON</h2>
+      <div class="tabs">
+        <button class="tab ${activeTab === "canonical" ? "on" : ""}" data-tab="canonical">canonical (the contract)</button>
+        <button class="tab ${activeTab === "full" ? "on" : ""}" data-tab="full">full response</button>
+      </div>
+      <button class="small secondary" id="copy">Copy</button>
+      <button class="small secondary" id="download">Download .json</button>
+      <span class="hint" id="copied"></span></div>
+      <div class="panel"><pre id="raw">${esc(JSON.stringify(activeTab === "canonical" ? c : result, null, 2))}</pre></div>
+      <p class="meta">${esc(m.strategy)} · ${esc(m.mode)}${m.model ? " · " + esc(m.model) : ""} · ${m.attempts} attempt(s) ·
+        ${m.latencyMs} ms server · ${clientMs} ms round trip · ${(m.sizeBytes / 1024).toFixed(0)} KB ${esc(m.mimeType)}</p></section>`;
+
+    outEl.innerHTML = html;
+
+    const payload = () => JSON.stringify(activeTab === "canonical" ? c : result, null, 2);
+    outEl.querySelectorAll(".tab").forEach(btn => btn.onclick = () => {
+      activeTab = btn.dataset.tab;
+      outEl.querySelectorAll(".tab").forEach(b => b.classList.toggle("on", b === btn));
+      $("raw").textContent = payload();
+    });
+    $("copy").onclick = async () => {
+      await navigator.clipboard.writeText(payload());
+      $("copied").textContent = "copied";
+      setTimeout(() => { const el = $("copied"); if (el) el.textContent = ""; }, 1600);
+    };
+    $("download").onclick = () => {
+      const blob = new Blob([payload()], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = (m.fileName || "bill").replace(/\.[^.]+$/, "") + `.${activeTab}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    };
+  }
+</script>
+</body>
+</html>
