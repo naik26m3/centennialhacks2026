@@ -25,11 +25,11 @@ Greenlight is not a chatbot and not a generic OCR demo. Its differentiator is co
 - Use **Railway PostgreSQL** as the canonical relational database.
 - Use **private Amazon S3** for uploads and source snapshots.
 - Use **Amazon Textract** for OCR, confidence, page, and evidence coordinates.
-- Use **Gemini** only for OCR normalization, explanations, and route-specific drafting.
+- Use **OpenRouter via the Vercel AI SDK** only for OCR normalization, explanations, and route-specific drafting.
 - Do not add Python, FastAPI, FastMCP, Expo, Lambda, API Gateway, Step Functions, DynamoDB, or a separate backend service for the MVP.
 - Do not implement frontend pages or visual design in this workstream; a teammate owns UI. The backend must expose stable contracts for that teammate.
 
-Next.js Route Handlers provide custom HTTP handlers inside the App Router, so a separate API framework is unnecessary for this scope ([Next.js Route Handler reference](https://nextjs.org/docs/app/building-your-application/routing/route-handlers)). Vercel deploys dynamic Next.js code as Vercel Functions and supports the Node.js runtime required by the AWS, Clerk, database, and Gemini SDKs ([Vercel runtimes](https://vercel.com/docs/functions/runtimes)). Path ownership keeps backend agents and the UI teammate from colliding without creating a second application.
+Next.js Route Handlers provide custom HTTP handlers inside the App Router, so a separate API framework is unnecessary for this scope ([Next.js Route Handler reference](https://nextjs.org/docs/app/building-your-application/routing/route-handlers)). Vercel deploys dynamic Next.js code as Vercel Functions and supports the Node.js runtime required by the AWS, Clerk, database, and Vercel AI SDK integrations ([Vercel runtimes](https://vercel.com/docs/functions/runtimes)). Path ownership keeps backend agents and the UI teammate from colliding without creating a second application.
 
 ## 3. Users and problem
 
@@ -47,7 +47,7 @@ An Ontario resident who receives an electricity or other utility bill and wants 
 
 ## 4. Product principles
 
-1. **AI explains; code calculates.** Gemini never creates an eligibility result or dollar amount.
+1. **AI explains; code calculates.** The model provider never creates an eligibility result or dollar amount.
 2. **Evidence before confidence.** Every material extracted field and recommendation links to bill evidence or a versioned official source.
 3. **Unknown stays unknown.** A bill does not prove which appliance caused an increase.
 4. **Financial categories stay separate.** Credits, grants, rebates, operating estimates, no-cost upgrades, financing, and upfront costs are never merged into a misleading total.
@@ -66,7 +66,7 @@ An Ontario resident who receives an electricity or other utility bill and wants 
 - Textract extraction of provider, billing period, billing days, total due, usage, rate plan when present, and service postal prefix.
 - Page/bounding-box evidence and confidence for extracted fields.
 - User confirmation for low-confidence or conflicting critical fields.
-- Gemini normalization into a validated canonical bill schema.
+- OpenRouter normalization via the Vercel AI SDK into a validated canonical bill schema.
 - Versioned registry for at least OESP, EAP, LEAP, Home Renovation Savings, and Toronto HELP.
 - Deterministic eligibility and financial calculations.
 - Retrieval of official evidence using metadata and full-text search.
@@ -95,13 +95,13 @@ An Ontario resident who receives an electricity or other utility bill and wants 
 4. The browser uploads directly to a private S3 key scoped to the case.
 5. `POST /api/documents/{documentId}/analyze` verifies the object and starts extraction.
 6. Textract returns OCR blocks, queries, confidence, pages, and coordinates.
-7. Gemini normalizes only the minimized OCR payload into the canonical bill schema.
+7. OpenRouter, called through the Vercel AI SDK, normalizes only the minimized OCR payload into the canonical bill schema.
 8. Backend validation reconciles dates, units, totals, and confidence. Uncertain critical fields enter `needs_review`.
 9. The rule engine filters current programs by jurisdiction, provider, effective date, and household facts.
 10. The engine asks the single missing question that resolves the most candidates.
 11. Deterministic code computes eligibility and value components.
 12. Retrieval finds supporting official excerpts for the exact program version and rule.
-13. Gemini explains the already-computed result in structured JSON.
+13. OpenRouter, called through the Vercel AI SDK, explains the already-computed result in structured JSON.
 14. The action router resolves the current official destination and prepares the appropriate checklist, call script, form packet, or email draft.
 15. The user reviews and approves before leaving Greenlight or executing any supported action.
 
@@ -117,13 +117,13 @@ flowchart TB
     API -->|Create URL / verify object| S3
     API -->|Analyze image or PDF| TEXTRACT["Amazon Textract"]
     S3 --> TEXTRACT
-    TEXTRACT --> NORMALIZE["Gemini normalization"]
+    TEXTRACT --> NORMALIZE["OpenRouter normalization via Vercel AI SDK"]
     NORMALIZE --> VALIDATE["TypeScript schema + validation"]
 
     VALIDATE --> RULES["Eligibility + financial engine"]
     DB --> RULES
     DB --> RETRIEVE["Official-evidence retrieval"]
-    RULES --> EXPLAIN["Gemini explanation"]
+    RULES --> EXPLAIN["OpenRouter explanation via Vercel AI SDK"]
     RETRIEVE --> EXPLAIN
     EXPLAIN --> ROUTER["Verified action router"]
     DB --> ROUTER
@@ -151,22 +151,20 @@ Keep modules as ordinary TypeScript folders in the single application. No interf
 - Persist only the evidence coordinates and minimized normalized fields required by the case.
 - Treat confidence as input to review logic, not truth. AWS recommends higher thresholds and human scrutiny for financially sensitive workflows ([Textract best practices](https://docs.aws.amazon.com/textract/latest/dg/textract-best-practices.html)).
 - Default critical-field review threshold: configurable, initially `90`.
-- A conflict between OCR, validation, and Gemini always requires review even above the threshold.
+- A conflict between OCR, validation, and the model output always requires review even above the threshold.
 
-### Gemini
+### Model provider
 
-Use the current official JavaScript/TypeScript SDK, `@google/genai`, and schema-constrained structured output ([Google GenAI SDK](https://ai.google.dev/gemini-api/docs/libraries), [Gemini structured output](https://ai.google.dev/gemini-api/docs/structured-output)). Keep the model identifier configurable rather than embedding a preview model name in business logic.
+Use the Vercel AI SDK with its OpenRouter provider for schema-constrained structured output. Keep the model identifier configurable rather than embedding a preview model name in business logic.
 
-Do not use Gemini's built-in Google Search as the program knowledge base. Retrieval must use Greenlight's reviewed official-source snapshots so the application controls versions, citations, and eligibility inputs.
-
-Gemini may:
+OpenRouter may:
 
 - normalize OCR fields;
 - classify ambiguities;
 - explain deterministic results using supplied evidence;
 - draft route-specific human language.
 
-Gemini may not:
+OpenRouter may not:
 
 - calculate or alter benefits;
 - decide eligibility;
@@ -186,7 +184,7 @@ official source snapshot
   → jurisdiction/effective-date/program metadata filter
   → PostgreSQL full-text ranking
   → top supporting excerpts
-  → Gemini explanation with source IDs
+  → OpenRouter explanation with source IDs
 ```
 
 This is retrieval-augmented generation without an additional vector service. Add pgvector or Bedrock Knowledge Bases only when measured retrieval failures show that full-text search is insufficient.
@@ -341,45 +339,26 @@ audit_events
 - Use a private S3 bucket with public access blocked.
 - Use least-privilege AWS permissions scoped to the Greenlight bucket and required Textract calls.
 - Prefer Vercel OIDC federation for short-lived AWS credentials; Vercel supports exchanging its OIDC token for AWS credentials, avoiding persistent AWS keys in deployment variables ([Vercel OIDC](https://vercel.com/docs/oidc), [Vercel AWS credentials provider](https://vercel.com/docs/oidc/reference)).
-- Store Clerk, Gemini, database, and fallback AWS secrets only in server-side environment variables.
+- Store Clerk, OpenRouter, database, and fallback AWS secrets only in server-side environment variables.
 - Never prefix secrets with `NEXT_PUBLIC_`.
 - Validate MIME type, magic bytes, checksum, and size at the trust boundary.
-- Mask account numbers before persistence beyond extraction and before Gemini.
+- Mask account numbers before persistence beyond extraction and before sending them to the model provider.
 - Never log raw documents or raw OCR text.
 - Add an S3 lifecycle rule for raw-demo upload expiration; S3 Lifecycle supports object expiration rules ([AWS S3 lifecycle](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lifecycle-mgmt.html)).
 - Provide case/document deletion and an auditable reset-demo operation.
 - Use synthetic or manually redacted documents for the hackathon.
 
-Do not send personal utility bills through unpaid Gemini services. Google's current terms say not to submit sensitive, confidential, or personal information to unpaid services and state that human reviewers may process unpaid-service inputs and outputs ([Gemini API terms](https://ai.google.dev/gemini-api/terms)). Production processing of real bills requires approved paid/enterprise data terms and a documented privacy review.
+Do not send personal utility bills through unapproved model services. Production processing of real bills requires an approved paid/enterprise OpenRouter account and documented privacy review.
 
 ## 13. Environments and deployment
 
 Use separate development, preview, and production settings.
 
-Required server configuration names:
-
-```env
-DATABASE_URL=
-
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
-CLERK_SECRET_KEY=
-
-AWS_REGION=
-AWS_S3_BUCKET=
-AWS_ROLE_ARN=
-
-GEMINI_API_KEY=
-GEMINI_MODEL=
-
-APP_URL=
-EXECUTION_MODE=live
-UPLOAD_MAX_BYTES=
-PRESIGNED_UPLOAD_TTL_SECONDS=600
-DEMO_DOCUMENT_TTL_HOURS=24
-OCR_REVIEW_CONFIDENCE=90
-```
-
-`EXECUTION_MODE` is server-only. Do not use `NEXT_PUBLIC_DEMO_MODE`, because a client-controlled flag must not choose trusted backend behavior.
+Copy [`.env.example`](../.env.example) to the ignored `.env.local` file and
+configure the required values there. Those two files are the canonical
+application configuration; this PRD intentionally does not duplicate the
+configuration key list. Server-only execution mode must remain server-owned;
+a client-controlled flag must not choose trusted backend behavior.
 
 Infrastructure responsibilities:
 
@@ -387,16 +366,17 @@ Infrastructure responsibilities:
 - **Railway:** PostgreSQL, connection string, backups/restore policy, database monitoring.
 - **Clerk:** development and production instances, allowed origins, session configuration.
 - **AWS:** private S3 bucket, CORS limited to approved app origins, lifecycle rule, Textract permissions, Vercel OIDC trust role.
-- **Gemini:** paid/approved API project for real data; free-tier use limited to synthetic/redacted demo data.
+- **OpenRouter:** approved paid/enterprise account and model terms for real data; synthetic/redacted data only until the privacy review is complete.
 
-This PRD does not authorize provisioning or changing cloud resources; credentials, billing scope, regions, and production domains must be confirmed during implementation.
+Provisioning requires explicit user authorization and verified target accounts;
+the deployment tracker records the current external-resource state.
 
 ## 14. Resilience modes
 
 | Mode | Upload/OCR | Rules | Explanation | Purpose |
 |---|---|---|---|---|
-| `live` | S3 + Textract | Live deterministic engine | Live Gemini | Normal operation |
-| `hybrid` | S3 + Textract | Live deterministic engine | Cached approved narrative | Gemini outage/rate limit |
+| `live` | S3 + Textract | Live deterministic engine | Live OpenRouter model | Normal operation |
+| `hybrid` | S3 + Textract | Live deterministic engine | Cached approved narrative | OpenRouter outage/rate limit |
 | `demo` | Synthetic saved extraction | Live deterministic engine | Saved narrative | Stage/Wi-Fi failure |
 
 All modes must exercise the same schemas, rule engine, evidence links, and action router. The demo fallback must not silently replace a live user document; mode and fixture use are explicit in server logs and case metadata.
@@ -409,9 +389,9 @@ All modes must exercise the same schemas, rule engine, evidence links, and actio
 - [ ] Textract extracts provider, period, billing days, total, usage, and postal prefix from the demo bill.
 - [ ] Each extracted critical value retains page/coordinate evidence and confidence.
 - [ ] Low-confidence or conflicting values require confirmation.
-- [ ] No full account number or raw OCR text reaches Gemini or logs.
+- [ ] No full account number or raw OCR text reaches the model provider or logs.
 - [ ] At least five Ontario programs have versioned official sources, rules, benefits, and routes.
-- [ ] Eligibility and dollar values are reproducible without Gemini.
+- [ ] Eligibility and dollar values are reproducible without the model provider.
 - [ ] Financing is excluded from savings totals.
 - [ ] Every recommendation cites the exact official source version used.
 - [ ] The system asks one high-value missing question rather than a long form.
@@ -425,7 +405,7 @@ All modes must exercise the same schemas, rule engine, evidence links, and actio
 1. Next.js server foundation, Clerk authorization, Railway schema.
 2. S3 presigned upload and file validation.
 3. Textract extraction, evidence mapping, and review state.
-4. Canonical bill schema and Gemini normalization.
+4. Canonical bill schema and OpenRouter normalization via the Vercel AI SDK.
 5. Versioned Ontario program seeds and deterministic engines.
 6. Official-evidence retrieval and citations.
 7. Action router and approval audit.

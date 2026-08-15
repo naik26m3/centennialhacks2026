@@ -15,7 +15,7 @@ editing.
 
 Requirements:
 
-- Node.js 20 or newer
+- Node.js 22 or newer
 - npm
 
 ```bash
@@ -41,24 +41,25 @@ npm run typecheck
 
 ## Environment
 
-Copy `.env.example` to `.env.local` and provide a Gemini API key. Never commit
-the local environment file.
+Copy [`.env.example`](.env.example) to the ignored `.env.local` file and fill
+in the required values. These two files are the canonical application
+configuration; never commit `.env.local`.
 
 ## API
 
 - `GET /api/health` — service health
-- `POST /api/reason` — official-source web research with Gemini Google Search
+- `POST /api/reason` — grounded reasoning through OpenRouter via the Vercel AI SDK
 
-The reasoning route returns the answer, search queries, source links, and the
-Google Search entry-point markup. It is research-only: deterministic backend
-code will own eligibility and financial calculations.
+The reasoning route returns real-time web research with source links marked as
+unreviewed. Reviewed program evidence comes from PostgreSQL retrieval;
+deterministic backend code owns eligibility and financial calculations.
 
 ## Project structure
 
 Keep backend work isolated from the frontend teammate:
 
 - `app/api/` — backend Route Handlers
-- `lib/reasoning/` — grounded Gemini research
+- `lib/reasoning/` — grounded retrieval and model explanations
 - `lib/ocr/` — reserved for the OCR teammate
 - `uxui/` — frontend teammate's application; backend agents do not touch it
 - `docs/` — product requirements and ownership coordination
