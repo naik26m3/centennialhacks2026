@@ -16,6 +16,14 @@
     "url": "https://saveonenergy.ca/en/For-Your-Home/Energy-Affordability-Program"
   },
   {
+    "id": "ca-on-energy-affordability-program-faq",
+    "programKey": "eap",
+    "authority": "Independent Electricity System Operator",
+    "jurisdiction": "CA-ON",
+    "title": "Energy Affordability Program FAQs",
+    "url": "https://saveonenergy.ca/en/For-Your-Home/Energy-Affordability-Program/EAP-FAQs"
+  },
+  {
     "id": "ca-on-low-income-energy-assistance-program",
     "programKey": "leap",
     "authority": "Ontario Energy Board",
@@ -30,6 +38,22 @@
     "jurisdiction": "CA-ON",
     "title": "Home Renovation Savings",
     "url": "https://saveonenergy.ca/en/For-Your-Home/Home-Renovation-Savings"
+  },
+  {
+    "id": "ca-on-home-renovation-savings-assessment",
+    "programKey": "home_renovation_savings",
+    "authority": "Independent Electricity System Operator and Enbridge Gas",
+    "jurisdiction": "CA-ON",
+    "title": "Energy assessment required upgrades",
+    "url": "https://www.homerenovationsavings.ca/with-assessment"
+  },
+  {
+    "id": "ca-on-home-renovation-savings-no-assessment",
+    "programKey": "home_renovation_savings",
+    "authority": "Independent Electricity System Operator and Enbridge Gas",
+    "jurisdiction": "CA-ON",
+    "title": "No energy assessment required upgrades",
+    "url": "https://www.homerenovationsavings.ca/without-assessment"
   },
   {
     "id": "ca-on-toronto-help",

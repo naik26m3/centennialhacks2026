@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   UntrustedSourceError,
@@ -15,6 +16,19 @@ test("source URLs require HTTPS and an exact official host", () => {
   assert.throws(() => assertOfficialSourceUrl("http://www.ontario.ca/laws/statute/98e15"), UntrustedSourceError);
   assert.throws(() => assertOfficialSourceUrl("https://ontario.ca.attacker.example/laws/statute/98e15"), UntrustedSourceError);
   assert.throws(() => assertOfficialSourceUrl("https://www.ontario.ca.evil.example/"), UntrustedSourceError);
+});
+
+test("configured program sources are unique official HTML pages", async () => {
+  const sources = JSON.parse(
+    await readFile(new URL("../data/legal-sources.json", import.meta.url), "utf8"),
+  ) as Array<{ id: string; programKey: string; url: string }>;
+  const programKeys = new Set(["oesp", "eap", "leap", "home_renovation_savings", "toronto_help"]);
+  assert.equal(new Set(sources.map(({ id }) => id)).size, sources.length);
+  for (const source of sources) {
+    assert.ok(programKeys.has(source.programKey));
+    assertOfficialSourceUrl(source.url);
+    assert.doesNotMatch(new URL(source.url).pathname, /\.pdf$/i);
+  }
 });
 
 test("chunking is deterministic, bounded, and overlapping", () => {

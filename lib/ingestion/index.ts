@@ -17,6 +17,8 @@ export const OFFICIAL_HOSTS = [
   "www.oeb.ca",
   "saveonenergy.ca",
   "www.saveonenergy.ca",
+  "homerenovationsavings.ca",
+  "www.homerenovationsavings.ca",
   "toronto.ca",
   "www.toronto.ca",
 ] as const;
