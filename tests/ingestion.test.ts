@@ -117,6 +117,7 @@ test("ingestion stores embedded chunks as pending review", async () => {
       fetchImpl: (async () => new Response("OESP monthly credit", {
         headers: { "content-type": "text/plain" },
       })) as typeof fetch,
+      model: "test/embedding",
       embedImpl: async (texts) => texts.map(() => Array(768).fill(0)),
     },
   );

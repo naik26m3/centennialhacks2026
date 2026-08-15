@@ -1,6 +1,6 @@
 import { generateText, stepCountIs } from "ai";
 
-import { DEFAULT_CHAT_MODEL, getOpenRouter } from "@/lib/ai/openrouter";
+import { getOpenRouter, getOpenRouterChatModel } from "@/lib/ai/openrouter";
 
 const MAX_QUESTION_LENGTH = 2_000;
 const MAX_FACTS_LENGTH = 20_000;
@@ -84,7 +84,7 @@ export function redactSensitiveFacts(input: Record<string, unknown>): Record<str
 
 export async function researchWithOpenRouter(input: ReasoningRequest) {
   const openrouter = getOpenRouter();
-  const model = process.env.OPENROUTER_CHAT_MODEL || DEFAULT_CHAT_MODEL;
+  const model = getOpenRouterChatModel();
   const result = await generateText({
     model: openrouter(model),
     system: [

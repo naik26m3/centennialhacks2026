@@ -2,8 +2,9 @@ import { createHash } from "node:crypto";
 import { embedMany } from "ai";
 
 import {
-  DEFAULT_EMBEDDING_MODEL,
   EMBEDDING_DIMENSIONS,
+  getEmbeddingDimensions,
+  getOpenRouterEmbeddingModel,
   getOpenRouter,
 } from "@/lib/ai/openrouter";
 import type { Database } from "@/lib/db";
@@ -230,8 +231,8 @@ export async function embedTexts(
     throw new TypeError("Every embedding input must be non-empty text");
   }
   if (texts.length === 0) return [];
-  const model = options.model ?? process.env.OPENROUTER_EMBEDDING_MODEL ?? DEFAULT_EMBEDDING_MODEL;
-  const dimensions = options.dimensions ?? Number(process.env.EMBEDDING_DIMENSIONS ?? EMBEDDING_DIMENSIONS);
+  const model = options.model ?? getOpenRouterEmbeddingModel();
+  const dimensions = options.dimensions ?? getEmbeddingDimensions();
   if (!model.trim()) throw new TypeError("Embedding model must be non-empty");
   if (dimensions !== EMBEDDING_DIMENSIONS) {
     throw new RangeError(`Embedding dimensions must be ${EMBEDDING_DIMENSIONS} for the current database schema`);
@@ -281,7 +282,7 @@ export async function ingestProgramSource(
     throw new TypeError("programKey must be a canonical program key");
   }
   const fetched = await prepareSourceForStorage(source, { fetchImpl: options.fetchImpl });
-  const model = options.model ?? process.env.OPENROUTER_EMBEDDING_MODEL ?? DEFAULT_EMBEDDING_MODEL;
+  const model = options.embed === false ? undefined : options.model ?? getOpenRouterEmbeddingModel();
   const embeddings = options.embed === false
     ? undefined
     : await (options.embedImpl ?? embedTexts)(
