@@ -8,7 +8,8 @@ Use the upstream skills in `.agents/skills/`. They are copied into this reposito
 
 - Treat `docs/PRD.md` as the product and architecture source of truth.
 - Build one TypeScript Next.js App Router application at the repository root. Use Route Handlers for the API and the Node.js runtime for server integrations.
-- Do not add Python, FastAPI, FastMCP, Expo, or a separate backend service.
+- Do not add Python, FastAPI, FastMCP, or a separate backend service.
+- Expo is permitted. The universal client lives in `frontend/` (Expo + React Native + TypeScript) and targets both desktop web and phone.
 - Deploy the Next.js application to Vercel, use Clerk for authentication, Railway PostgreSQL for relational data, private Amazon S3 for documents, Textract for OCR/evidence, and Gemini for normalization and explanations.
 - Deterministic TypeScript code owns eligibility and financial calculations. Gemini may explain verified results but must not invent eligibility, dollar amounts, contacts, or sources.
 - The frontend teammate exclusively owns `uxui/**`. Backend agents must not edit, format, install dependencies in, or generate files inside that directory unless the user explicitly reassigns it.

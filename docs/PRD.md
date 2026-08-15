@@ -26,7 +26,8 @@ Greenlight is not a chatbot and not a generic OCR demo. Its differentiator is co
 - Use **private Amazon S3** for uploads and source snapshots.
 - Use **Amazon Textract** for OCR, confidence, page, and evidence coordinates.
 - Use **OpenRouter via the Vercel AI SDK** only for OCR normalization, explanations, and route-specific drafting.
-- Do not add Python, FastAPI, FastMCP, Expo, Lambda, API Gateway, Step Functions, DynamoDB, or a separate backend service for the MVP.
+- Do not add Python, FastAPI, FastMCP, Lambda, API Gateway, Step Functions, DynamoDB, or a separate backend service for the MVP.
+- Expo is permitted. The mobile/universal client lives in `frontend/` and is built with Expo, React Native, and TypeScript.
 - Do not implement frontend pages or visual design in this workstream; a teammate owns UI. The backend must expose stable contracts for that teammate.
 
 Next.js Route Handlers provide custom HTTP handlers inside the App Router, so a separate API framework is unnecessary for this scope ([Next.js Route Handler reference](https://nextjs.org/docs/app/building-your-application/routing/route-handlers)). Vercel deploys dynamic Next.js code as Vercel Functions and supports the Node.js runtime required by the AWS, Clerk, database, and Vercel AI SDK integrations ([Vercel runtimes](https://vercel.com/docs/functions/runtimes)). Path ownership keeps backend agents and the UI teammate from colliding without creating a second application.
