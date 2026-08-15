@@ -1,0 +1,131 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Private Greenlight upload bucket and least-privilege Vercel OIDC role.
+
+Parameters:
+  BucketName:
+    Type: String
+    Description: Globally unique S3 bucket name for Greenlight bill uploads.
+    AllowedPattern: '^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$'
+  VercelOidcProviderArn:
+    Type: String
+    Description: Existing team-scoped Vercel OIDC provider ARN.
+  VercelTeamSlug:
+    Type: String
+    Description: Vercel team slug used in the OIDC claims.
+    AllowedPattern: '^[a-z0-9][a-z0-9-]{0,62}$'
+  VercelProjectName:
+    Type: String
+    Description: Exact Vercel project name in the OIDC subject claim.
+    AllowedPattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$'
+  VercelEnvironment:
+    Type: String
+    Default: production
+    AllowedValues:
+      - production
+      - preview
+      - development
+  WebOrigin:
+    Type: String
+    Description: Exact browser origin allowed to PUT uploads, including scheme and no trailing slash.
+    AllowedPattern: '^https?://[^/]+$'
+
+Resources:
+  UploadBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Ref BucketName
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireTemporaryUploads
+            Prefix: cases/
+            Status: Enabled
+            ExpirationInDays: 1
+      CorsConfiguration:
+        CorsRules:
+          - AllowedMethods:
+              - PUT
+            AllowedOrigins:
+              - !Ref WebOrigin
+            AllowedHeaders:
+              - content-type
+              - x-amz-checksum-sha256
+            ExposedHeaders:
+              - ETag
+            MaxAge: 300
+
+  UploadBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref UploadBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource:
+              - !GetAtt UploadBucket.Arn
+              - !Sub '${UploadBucket.Arn}/*'
+            Condition:
+              Bool:
+                aws:SecureTransport: 'false'
+
+  VercelUploadRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Allows the Greenlight Vercel project to presign and read its own uploads.
+      AssumeRolePolicyDocument:
+        Fn::Sub:
+          - |
+            {
+              "Version": "2012-10-17",
+              "Statement": [{
+                "Effect": "Allow",
+                "Principal": {"Federated": "${OidcProviderArn}"},
+                "Action": "sts:AssumeRoleWithWebIdentity",
+                "Condition": {
+                  "StringEquals": {
+                    "oidc.vercel.com/${TeamSlug}:aud": "https://vercel.com/${TeamSlug}",
+                    "oidc.vercel.com/${TeamSlug}:sub": "owner:${TeamSlug}:project:${ProjectName}:environment:${Environment}"
+                  }
+                }
+              }]
+            }
+          - OidcProviderArn: !Ref VercelOidcProviderArn
+            TeamSlug: !Ref VercelTeamSlug
+            ProjectName: !Ref VercelProjectName
+            Environment: !Ref VercelEnvironment
+      Policies:
+        - PolicyName: GreenlightUploadObjects
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: PutAndReadCaseObjects
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                Resource: !Sub '${UploadBucket.Arn}/cases/*'
+
+Outputs:
+  BucketName:
+    Description: Set AWS_S3_BUCKET to this value.
+    Value: !Ref UploadBucket
+  RoleArn:
+    Description: Set AWS_ROLE_ARN to this value in Vercel.
+    Value: !GetAtt VercelUploadRole.Arn
