@@ -1,9 +1,10 @@
-import { generateText } from "ai";
+import { generateText, stepCountIs } from "ai";
 
 import { DEFAULT_CHAT_MODEL, getOpenRouter } from "@/lib/ai/openrouter";
 
 const MAX_QUESTION_LENGTH = 2_000;
 const MAX_FACTS_LENGTH = 20_000;
+const SENSITIVE_FACT_KEY = /^(?:account(?:number)?|account_number|address|email|full_?name|meter(?:number)?|meter_number|phone)$/i;
 
 type GroundingSource =
   | { type: "source"; sourceType: "url"; id: string; url: string; title?: string }
@@ -57,6 +58,30 @@ export function extractGrounding(input: readonly GroundingSource[]) {
   };
 }
 
+export function redactSensitiveFacts(input: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(input).map(([key, value]) => {
+      if (SENSITIVE_FACT_KEY.test(key)) return [key, "[REDACTED]"];
+      if (Array.isArray(value)) {
+        return [
+          key,
+          value.map((item) =>
+            item && typeof item === "object" && !Array.isArray(item)
+              ? redactSensitiveFacts(item as Record<string, unknown>)
+              : item,
+          ),
+        ];
+      }
+      return [
+        key,
+        value && typeof value === "object"
+          ? redactSensitiveFacts(value as Record<string, unknown>)
+          : value,
+      ];
+    }),
+  );
+}
+
 export async function researchWithOpenRouter(input: ReasoningRequest) {
   const openrouter = getOpenRouter();
   const model = process.env.OPENROUTER_CHAT_MODEL || DEFAULT_CHAT_MODEL;
@@ -69,11 +94,12 @@ export async function researchWithOpenRouter(input: ReasoningRequest) {
       "This endpoint is research only: do not decide eligibility, calculate benefits, invent contacts, or treat web results as reviewed program data.",
       "State uncertainty and effective dates clearly. Never request or repeat sensitive personal information.",
     ].join(" "),
-    prompt: JSON.stringify(input),
+    prompt: JSON.stringify({ ...input, facts: redactSensitiveFacts(input.facts) }),
     tools: {
       web_search: openrouter.tools.webSearch({ maxResults: 5, engine: "auto" }),
     },
     toolChoice: "required",
+    stopWhen: stepCountIs(2),
   });
 
   return {

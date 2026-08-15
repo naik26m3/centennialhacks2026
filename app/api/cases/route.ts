@@ -2,10 +2,13 @@ import { randomUUID } from "node:crypto";
 
 import { requireUser } from "@/lib/auth";
 import {
-  parseReasoningRequest,
-  ReasoningInputError,
-  researchWithOpenRouter,
-} from "@/lib/reasoning";
+  CaseInputError,
+  createCase,
+  executionMode,
+  mapCaseStatus,
+  mapCaseStatusError,
+  parseIdempotencyKey,
+} from "@/lib/cases";
 
 export const runtime = "nodejs";
 
@@ -15,11 +18,14 @@ export async function POST(request: Request) {
   if (user instanceof Response) return user;
 
   try {
-    const input = parseReasoningRequest(await request.json());
-    const data = await researchWithOpenRouter(input);
-    return Response.json({ data, error: null, requestId });
+    const idempotencyKey = parseIdempotencyKey(request.headers.get("idempotency-key"));
+    const result = await createCase(user.userId, idempotencyKey, executionMode());
+    return Response.json(
+      { data: mapCaseStatus(result.row), error: mapCaseStatusError(result.row.status), requestId },
+      { status: result.created ? 201 : 200 },
+    );
   } catch (error) {
-    if (error instanceof ReasoningInputError) {
+    if (error instanceof CaseInputError) {
       return Response.json(
         {
           data: null,
@@ -30,22 +36,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (error instanceof SyntaxError) {
-      return Response.json(
-        {
-          data: null,
-          error: {
-            code: "invalid_request",
-            message: "Request body must be valid JSON.",
-            retryable: false,
-          },
-          requestId,
-        },
-        { status: 400 },
-      );
-    }
-
-    console.error("Reasoning request failed", {
+    console.error("Case creation failed", {
       requestId,
       errorName: error instanceof Error ? error.name : "UnknownError",
     });
@@ -53,8 +44,8 @@ export async function POST(request: Request) {
       {
         data: null,
         error: {
-          code: "reasoning_unavailable",
-          message: "Grounded research is temporarily unavailable.",
+          code: "case_unavailable",
+          message: "Cases are temporarily unavailable.",
           retryable: true,
         },
         requestId,
