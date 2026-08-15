@@ -17,16 +17,29 @@ export async function main(path = process.argv[2]) {
 
   const bytes = new Uint8Array(await readFile(file));
   const bill = await analyzeBillDocument({ bytes, contentType: "image/jpeg" });
-  console.log(JSON.stringify({ ok: true, bill }));
+  console.log(JSON.stringify({
+    ok: true,
+    provider: process.env.OCR_PROVIDER ?? "textract",
+    fields: Object.fromEntries(Object.entries(bill).map(([name, field]) => [name, {
+      present: field.value !== null,
+      confidence: field.confidence,
+      evidenceCount: field.evidence.length,
+    }])),
+  }));
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((error) => {
     const errorName = error instanceof Error ? error.name : "UnknownError";
+    const statusCode = error && typeof error === "object" && "statusCode" in error
+      && typeof error.statusCode === "number" ? error.statusCode : undefined;
     console.error(JSON.stringify({
       ok: false,
       errorName,
-      blocker: "AWS credentials, Textract permissions, region, or network may be unavailable; inspect AWS configuration without logging document contents.",
+      ...(statusCode === undefined ? {} : { statusCode }),
+      blocker: process.env.OCR_PROVIDER === "openrouter"
+        ? "OpenRouter API call failed (check OPENROUTER_API_KEY, OPENROUTER_CHAT_MODEL, or network); document output suppressed."
+        : "AWS credentials, Textract permissions, region, or network may be unavailable; document output suppressed.",
     }));
     process.exitCode = 1;
   });

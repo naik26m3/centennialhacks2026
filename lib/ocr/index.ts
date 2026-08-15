@@ -5,7 +5,9 @@ import {
   type Block,
 } from "@aws-sdk/client-textract";
 import { awsCredentialsProvider } from "@vercel/oidc-aws-credentials-provider";
+import { generateObject, jsonSchema } from "ai";
 
+import { getOpenRouter, getOpenRouterChatModel } from "@/lib/ai/openrouter";
 import { usesVercelOidc } from "@/lib/uploads";
 
 export const OCR_CONTENT_TYPES = ["image/jpeg", "image/png", "application/pdf"] as const;
@@ -24,6 +26,7 @@ export type OcrEvidence = {
   page: number;
   text: string;
   confidence: number;
+  source?: OcrProvider;
   boundingBox?: OcrBoundingBox;
 };
 
@@ -57,6 +60,8 @@ export type OcrDocumentInput = {
   contentType: OcrContentType;
 };
 
+export type OcrProvider = "openrouter" | "textract";
+
 export class OcrValidationError extends Error {
   override name = "OcrValidationError";
 }
@@ -68,6 +73,55 @@ const QUERIES = [
   { Text: "What is the total energy or water usage and its unit?", Alias: "usage" },
   { Text: "What is the account number?", Alias: "account_number" },
 ] as const;
+
+type OpenRouterBillField<T> = {
+  value: T | null;
+  confidence: number | null;
+  page: number | null;
+};
+
+type OpenRouterBillExtraction = {
+  provider: OpenRouterBillField<string>;
+  billing_period: OpenRouterBillField<{ start: string | null; end: string | null }>;
+  total: OpenRouterBillField<number | string>;
+  usage: OpenRouterBillField<{ value: number | string; unit: string | null }>;
+  account_number: OpenRouterBillField<string>;
+};
+
+const OPENROUTER_SCHEMA = jsonSchema<OpenRouterBillExtraction>({
+  type: "object",
+  additionalProperties: false,
+  required: ["provider", "billing_period", "total", "usage", "account_number"],
+  properties: {
+    provider: { type: "object", additionalProperties: false, required: ["value", "confidence", "page"], properties: {
+      value: { type: ["string", "null"] }, confidence: { type: ["number", "null"] }, page: { type: ["integer", "null"] },
+    } },
+    billing_period: { type: "object", additionalProperties: false, required: ["value", "confidence", "page"], properties: {
+      value: { type: ["object", "null"], additionalProperties: false, required: ["start", "end"], properties: {
+        start: { type: ["string", "null"] }, end: { type: ["string", "null"] },
+      } }, confidence: { type: ["number", "null"] }, page: { type: ["integer", "null"] },
+    } },
+    total: { type: "object", additionalProperties: false, required: ["value", "confidence", "page"], properties: {
+      value: { type: ["number", "string", "null"] }, confidence: { type: ["number", "null"] }, page: { type: ["integer", "null"] },
+    } },
+    usage: { type: "object", additionalProperties: false, required: ["value", "confidence", "page"], properties: {
+      value: { type: ["object", "null"], additionalProperties: false, required: ["value", "unit"], properties: {
+        value: { type: ["number", "string"] }, unit: { type: ["string", "null"] },
+      } }, confidence: { type: ["number", "null"] }, page: { type: ["integer", "null"] },
+    } },
+    account_number: { type: "object", additionalProperties: false, required: ["value", "confidence", "page"], properties: {
+      value: { type: ["string", "null"] }, confidence: { type: ["number", "null"] }, page: { type: ["integer", "null"] },
+    } },
+  },
+});
+
+export function getOcrProvider(): OcrProvider {
+  const provider = (process.env.OCR_PROVIDER?.trim().toLowerCase() || "textract") as OcrProvider;
+  if (provider !== "openrouter" && provider !== "textract") {
+    throw new OcrValidationError("OCR_PROVIDER must be openrouter or textract.");
+  }
+  return provider;
+}
 
 const MONTHS: Record<string, string> = {
   jan: "01", january: "01", feb: "02", february: "02", mar: "03", march: "03",
@@ -130,6 +184,7 @@ function evidence(block: Block, text = block.Text ?? ""): OcrEvidence {
     page: typeof block.Page === "number" && block.Page > 0 ? block.Page : 1,
     text: text.trim(),
     confidence: confidence(block),
+    source: "textract",
     ...(box && [box.Left, box.Top, box.Width, box.Height].every((value) => typeof value === "number")
       ? { boundingBox: { left: box.Left!, top: box.Top!, width: box.Width!, height: box.Height! } }
       : {}),
@@ -233,6 +288,59 @@ export function extractCanonicalBill(response: AnalyzeDocumentCommandOutput): Ca
   };
 }
 
+function modelConfidence(value: number | null): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  // OpenRouter has no Textract geometry/evidence. Keep every model result below
+  // the normal auto-accept threshold so it remains review-required.
+  return Math.max(0, Math.min(75, value));
+}
+
+function modelEvidence<T>(value: T, field: OpenRouterBillField<unknown>): OcrEvidence[] {
+  const confidence = modelConfidence(field.confidence) ?? 0;
+  return [{
+    page: typeof field.page === "number" && Number.isInteger(field.page) && field.page > 0 ? field.page : 1,
+    text: String(value).trim(),
+    confidence,
+    source: "openrouter",
+  }];
+}
+
+function modelField<T>(field: OpenRouterBillField<unknown>, value: T | undefined): OcrField<T> {
+  if (value === undefined || value === null || (typeof value === "string" && !value.trim())) return emptyField();
+  return { value, confidence: modelConfidence(field.confidence), evidence: modelEvidence(value, field) };
+}
+
+/** Normalize structured OpenRouter output without exposing account values or inventing geometry. */
+export function extractCanonicalBillFromOpenRouter(result: OpenRouterBillExtraction): CanonicalBillOcr {
+  const period = result.billing_period?.value;
+  const start = typeof period?.start === "string" ? parseDate(period.start) : undefined;
+  const end = typeof period?.end === "string" ? parseDate(period.end) : undefined;
+  const normalizedPeriod = start && end ? { start, end } : undefined;
+
+  const totalValue = result.total?.value;
+  const total = totalValue === null || totalValue === undefined ? undefined : parseMoney(String(totalValue));
+
+  const usageValue = result.usage?.value;
+  const usage = usageValue?.value === null || usageValue?.value === undefined || !usageValue?.unit
+    ? undefined
+    : parseUsage(`${usageValue.value} ${usageValue.unit}`);
+
+  const provider = typeof result.provider?.value === "string" ? result.provider.value.trim() : undefined;
+  const account = typeof result.account_number?.value === "string" ? result.account_number.value : undefined;
+
+  return {
+    provider: modelField(result.provider, provider),
+    billingPeriod: modelField(result.billing_period, normalizedPeriod),
+    total: modelField(result.total, total),
+    usage: modelField(result.usage, usage),
+    accountNumber: account ? {
+      value: maskAccountNumber(account),
+      confidence: modelConfidence(result.account_number.confidence),
+      evidence: modelEvidence(maskAccountNumber(account), result.account_number),
+    } : emptyField(),
+  };
+}
+
 function createTextractClient(): TextractClient {
   const region = process.env.AWS_REGION?.trim() || "ca-central-1";
   const roleArn = process.env.AWS_ROLE_ARN?.trim();
@@ -246,9 +354,26 @@ function createTextractClient(): TextractClient {
 
 export async function analyzeBillDocument(
   input: unknown,
-  options: { client?: TextractClient } = {},
+  options: { client?: TextractClient; generateObjectFn?: typeof generateObject } = {},
 ): Promise<CanonicalBillOcr> {
   const document = parseOcrDocumentInput(input);
+  if (getOcrProvider() === "openrouter") {
+    const generate = options.generateObjectFn ?? generateObject;
+    const { object } = await generate({
+      model: getOpenRouter()(getOpenRouterChatModel()),
+      schema: OPENROUTER_SCHEMA,
+      schemaName: "canonical_utility_bill",
+      schemaDescription: "Canonical utility bill fields. Use null when a field is not legible or absent.",
+      messages: [{
+        role: "user",
+        content: [
+          { type: "text", text: "Read this utility bill. Return only fields supported by the schema. Do not guess. Include the source page when clear; otherwise use null. Account numbers are sensitive and will be masked after extraction." },
+          { type: "file", mediaType: document.contentType, data: document.bytes },
+        ],
+      }],
+    });
+    return extractCanonicalBillFromOpenRouter(object);
+  }
   const client = options.client ?? createTextractClient();
   const response = await client.send(new AnalyzeDocumentCommand({
     Document: { Bytes: document.bytes },
