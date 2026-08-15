@@ -127,27 +127,42 @@ export function BillUploader() {
   };
 
   return (
-    <div className="w-full max-w-md">
+    <div className="mx-auto w-full max-w-2xl rounded-[28px] border border-white/80 bg-white/72 p-3 shadow-[0_24px_70px_rgba(32,57,40,0.20)] backdrop-blur-2xl sm:p-4">
       {isAnalyzing ? (
-        <div className="w-full rounded-xl border-2 border-dashed border-line-strong p-8 flex flex-col items-center gap-4">
-          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-soft text-brand">
-            <Loader2 size={20} className="animate-spin" aria-hidden="true" />
-          </span>
-          <ul className="flex flex-col gap-2 w-full max-w-[240px]">
+        <div className="relative w-full overflow-hidden rounded-[20px] border border-white/80 bg-white/48 px-5 py-6 text-left sm:px-8 sm:py-7" aria-live="polite">
+          <motion.span
+            className="pointer-events-none absolute inset-y-0 w-28 bg-gradient-to-r from-transparent via-[#f9efc7]/65 to-transparent blur-xl"
+            animate={shouldReduceMotion ? undefined : { x: ["-180%", "720%"] }}
+            transition={{ duration: 3.2, repeat: Infinity, repeatDelay: 0.8, ease: "easeInOut" }}
+            aria-hidden="true"
+          />
+          <div className="relative mb-5 flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand/10 text-brand">
+              <Loader2 size={17} className="animate-spin" aria-hidden="true" />
+            </span>
+            <div>
+              <p className="text-[14px] font-semibold text-brand">Greenlight is reading the household</p>
+              <p className="text-[12px] text-ink-muted">Each confirmed step narrows the right programs.</p>
+            </div>
+          </div>
+          <ul className="relative flex w-full flex-col gap-2.5">
             {ANALYSIS_STEPS.map((step, i) => (
-              <li key={step} className="flex items-center gap-2 text-[13px]">
+              <li key={step} className="flex items-center gap-2.5 text-[13px]">
                 {i < stepIndex ? (
-                  <CheckCircle2 size={14} className="text-success shrink-0" aria-hidden="true" />
+                  <CheckCircle2 size={15} className="text-success shrink-0" aria-hidden="true" />
                 ) : i === stepIndex ? (
-                  <Loader2 size={14} className="animate-spin text-brand shrink-0" aria-hidden="true" />
+                  <span className="relative flex h-[15px] w-[15px] shrink-0 items-center justify-center" aria-hidden="true">
+                    <span className="absolute h-full w-full rounded-full bg-brand/20 motion-safe:animate-ping" />
+                    <span className="relative h-2 w-2 rounded-full bg-brand" />
+                  </span>
                 ) : (
-                  <span className="h-3.5 w-3.5 rounded-full border border-line shrink-0" aria-hidden="true" />
+                  <span className="h-[15px] w-[15px] shrink-0 rounded-full border border-brand/20" aria-hidden="true" />
                 )}
                 <span className={i <= stepIndex ? "text-ink" : "text-ink-muted"}>{step}</span>
               </li>
             ))}
           </ul>
-          <p className="text-[11px] text-ink-muted text-center">Real Gemini analysis can take 20–30 seconds.</p>
+          <p className="relative mt-5 text-[11px] text-ink-muted">Live document analysis usually takes 20–30 seconds.</p>
         </div>
       ) : (
         <motion.button
@@ -161,19 +176,19 @@ export function BillUploader() {
           whileHover={shouldReduceMotion ? undefined : { y: -2, borderColor: "var(--brand)", backgroundColor: "var(--brand-soft)" }}
           animate={{
             borderColor: isDraggingOver ? "var(--brand)" : "var(--line-strong)",
-            backgroundColor: isDraggingOver ? "var(--brand-soft)" : "var(--card)",
+            backgroundColor: isDraggingOver ? "rgba(231, 240, 234, 0.88)" : "rgba(255, 255, 255, 0.36)",
           }}
           transition={shouldReduceMotion ? { duration: 0 } : motionTokens.springSoft}
-          className="w-full rounded-xl border-2 border-dashed p-8 flex flex-col items-center gap-3 text-center"
+          className="group flex min-h-[178px] w-full flex-col items-center justify-center gap-2.5 rounded-[20px] border border-dashed p-6 text-center transition-shadow hover:shadow-[inset_0_0_45px_rgba(255,255,255,0.34)] sm:min-h-[196px] sm:p-8"
         >
-          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-soft text-brand">
-            <Upload size={20} aria-hidden="true" />
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-brand/10 bg-white/55 text-brand shadow-[0_8px_22px_rgba(31,92,63,0.08)] transition-transform group-hover:-translate-y-0.5">
+            <Upload size={21} strokeWidth={1.7} aria-hidden="true" />
           </span>
-          <span className="text-[15px] font-medium">
-            {isDraggingOver ? "Drop it here — we'll take it from here" : "Upload your bills"}
+          <span className="mt-1 text-[16px] font-semibold text-brand">
+            {isDraggingOver ? "Drop it here — we'll take it from here" : "Drop your utility bills here"}
           </span>
-          <span className="text-[13px] text-ink-muted max-w-xs">
-            Add your electricity and gas bills — a few months of each gives more accurate savings estimates.
+          <span className="max-w-sm text-[12.5px] leading-relaxed text-ink-soft/75">
+            PDF or photo · electricity and gas bills can be added together
           </span>
         </motion.button>
       )}
@@ -203,7 +218,7 @@ export function BillUploader() {
       />
 
       {!isAnalyzing && selectedFiles.length > 0 && (
-        <ul className="mt-3 flex flex-col gap-1.5">
+        <ul className="mt-3 flex flex-col gap-1.5 px-1">
           <AnimatePresence initial={false}>
             {selectedFiles.map((f) => (
               <motion.li
@@ -212,7 +227,7 @@ export function BillUploader() {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.96 }}
                 transition={{ duration: motionTokens.duration.fast }}
-                className="flex items-center gap-2 rounded-lg border border-line bg-card px-3 py-2 text-[13px]"
+                className="flex items-center gap-2 rounded-xl border border-white/80 bg-white/58 px-3 py-2 text-[13px]"
               >
                 <FileText size={14} className="text-ink-muted shrink-0" aria-hidden="true" />
                 <span className="truncate flex-1">{f.name}</span>
@@ -236,18 +251,18 @@ export function BillUploader() {
       )}
 
       {!isAnalyzing && (
-        <div className="mt-4 flex flex-col sm:flex-row gap-3">
+        <div className="mt-3 flex flex-col gap-2 sm:grid sm:grid-cols-2">
           {selectedFiles.length > 0 ? (
             <TactileButton
               onClick={analyzeFiles}
-              className="flex-1 rounded-lg bg-ink text-white text-[14px] font-medium py-2.5 hover:bg-ink/90 transition-colors"
+              className="rounded-xl bg-brand py-3 text-[14px] font-semibold text-white shadow-[0_9px_24px_rgba(31,92,63,0.20)] transition-colors hover:bg-[#174c33]"
             >
               {`Analyze ${selectedFiles.length} bill${selectedFiles.length === 1 ? "" : "s"}`}
             </TactileButton>
           ) : (
             <TactileButton
               onClick={goToDemo}
-              className="flex-1 rounded-lg bg-ink text-white text-[14px] font-medium py-2.5 hover:bg-ink/90 transition-colors"
+              className="rounded-xl bg-brand py-3 text-[14px] font-semibold text-white shadow-[0_9px_24px_rgba(31,92,63,0.20)] transition-colors hover:bg-[#174c33]"
             >
               Try a demo household
             </TactileButton>
@@ -255,7 +270,7 @@ export function BillUploader() {
           <TactileButton
             onClick={() => cameraInputRef.current?.click()}
             playSound={false}
-            className="flex-1 rounded-lg border border-line text-[14px] font-medium py-2.5 hover:bg-card transition-colors inline-flex items-center justify-center gap-2"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/90 bg-white/38 py-3 text-[14px] font-semibold text-brand transition-colors hover:bg-white/68"
           >
             <Camera size={15} aria-hidden="true" />
             Take a photo

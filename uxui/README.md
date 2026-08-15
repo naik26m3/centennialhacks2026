@@ -101,3 +101,10 @@ npm run dev
 ```
 
 Open `http://localhost:3000`, click "Try a demo household."
+
+## Visual asset provenance
+
+- `public/images/greenlight-meadow.webp` is an original AI-generated hero
+  background created specifically for Greenlight on 2026-08-15 with OpenAI's
+  built-in image-generation tool. It contains no third-party logos or source
+  photography and was compressed locally to WebP for the app.
