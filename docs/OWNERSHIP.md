@@ -14,6 +14,8 @@ their slice, commits only that scope, and then marks it available.
 | `lib/ocr/**`, `scripts/ocr-smoke.ts`, `tests/ocr.test.ts` | Gemini OCR Luna agent | active — user reassigned for this slice |
 | `app/api/documents/**`, `lib/documents/**`, `tests/documents.test.ts` | document-pipeline Luna agent | active |
 | `app/api/opportunities/**`, `app/api/actions/**`, `lib/actions/**`, `tests/actions.test.ts` | action-approval Luna agent | active |
+| `app/api/cases/[id]/answers/**`, `lib/evaluation/**`, `tests/evaluation.test.ts` | evaluation-orchestration Luna agent | active |
+| `db/seeds/003_program_registry.sql`, `tests/program-registry.test.ts` | program-registry Luna agent | active |
 | `uxui/**` | Codex final experience transformation | complete — available |
 | `scripts/build-claude-review.mjs`, `GREENLIGHT_CLAUDE_REVIEW.html` | Codex final experience dossier refresh | complete — available |
 | `README.md`, `docs/PRD.md` | documentation cleanup agent | complete — available |
