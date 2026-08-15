@@ -6,15 +6,27 @@ Use the upstream skills in `.agents/skills/`. They are copied into this reposito
 
 ## Architecture direction
 
-- Build the backend as a FastAPI **DDD modular monolith**: one deployable application, bounded contexts isolated by feature, and explicit public module boundaries. Do not split services unless the user asks.
-- Keep the API FastMCP-compatible. Use the upstream FastAPI, FastMCP, and MCP Builder skills when designing HTTP or MCP interfaces.
-- Build mobile clients with React Native and Expo. Use the Expo design-system, router, native-UI, data-fetching, and Tailwind/NativeWind skills when relevant.
-- Assistant UI is optional. Only introduce it when the designer or user chooses it for an AI interface; its presence in this repo is not a mandate.
-- Deploy the FastAPI backend to Railway. Use Vercel for web frontend/serverless work when appropriate. Do not create or modify direct AWS infrastructure unless the user explicitly requests it.
+- Treat `docs/PRD.md` as the product and architecture source of truth.
+- Build one TypeScript Next.js App Router application. Use Route Handlers for the API and the Node.js runtime for server integrations.
+- Do not add Python, FastAPI, FastMCP, Expo, or a separate backend service.
+- Deploy the Next.js application to Vercel, use Clerk for authentication, Railway PostgreSQL for relational data, private Amazon S3 for documents, Textract for OCR/evidence, and Gemini for normalization and explanations.
+- Deterministic TypeScript code owns eligibility and financial calculations. Gemini may explain verified results but must not invent eligibility, dollar amounts, contacts, or sources.
+- The frontend teammate owns pages, components, styling, and visual design. Backend agents must not edit frontend files unless the user explicitly reassigns that work.
+- The OCR teammate owns `lib/ocr/**`. API/reasoning agents must consume the shared OCR contract and must not edit the OCR implementation.
+- Keep the hackathon MVP small: PostgreSQL full-text retrieval over reviewed official-source snapshots is the initial RAG implementation. Add vector infrastructure only after measured need.
+
+## Parallel ownership
+
+- Read `docs/OWNERSHIP.md` before editing and claim an unowned path there first.
+- One owner edits a path at a time. Shared files such as `package.json`, lockfiles, `AGENTS.md`, and `lib/contracts/**` require explicit coordination in the ownership file.
+- Commit only files in your claimed scope. Never stage or commit another agent's unfinished changes.
+- Work directly on `main` for this hackathon; do not create branches or worktrees unless the user changes this policy.
+- Keep commits atomic and leave `main` buildable. Run the relevant check before each commit.
+- Before starting a new slice, fetch and fast-forward only from a clean worktree. Never force-push, reset, or rewrite shared history.
 
 ## Git authority
 
-- Coding agents must never run `git commit`, including `--no-verify`, amend, or any workaround that bypasses this rule.
-- Coding agents must not set `ALLOW_HUMAN_COMMIT`, edit/unset `core.hooksPath`, or alter `.githooks/pre-commit` to bypass the guard.
-- Do not stage changes unless the user explicitly asks. The human owner reviews and commits.
-- A human can intentionally commit with `ALLOW_HUMAN_COMMIT=1 git commit ...`.
+- The user has authorized coding agents to stage, commit, and push completed work in their claimed scope.
+- Inspect the staged diff, run checks, and scan for secrets before committing.
+- Do not use `--no-verify`, amend another agent's commit, or bypass repository hooks.
+- Push only normal fast-forward commits to `main`. Never force-push.
